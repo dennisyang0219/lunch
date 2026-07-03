@@ -112,6 +112,25 @@
                   <button class="btn btn-secondary btn-sm" id="btn-add-item" style="display: none; padding: 0.25rem 0.5rem;">➕ 新增品項</button>
                 </div>
               </div>
+              
+              <!-- Store Details Form (Address, Phone, Remarks) -->
+              <div id="store-details-section" style="display: none; border-bottom: 1px solid rgba(14, 165, 233, 0.1); margin-bottom: 1rem; padding-bottom: 1rem;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                  <div class="form-group" style="margin-bottom: 0.5rem;">
+                    <label style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600; color: var(--text-secondary);">📍 店家地址 (選填)</label>
+                    <input type="text" id="store-address-input" placeholder="例如: 台北市忠孝東路三段1號" style="padding: 0.5rem 0.75rem; font-size: 0.9rem;">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0.5rem;">
+                    <label style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600; color: var(--text-secondary);">📞 店家電話 (選填)</label>
+                    <input type="text" id="store-phone-input" placeholder="例如: 02-27712171" style="padding: 0.5rem 0.75rem; font-size: 0.9rem;">
+                  </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label style="font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600; color: var(--text-secondary);">📝 備註事項 (選填 - 如外送門檻、餐飲要求)</label>
+                  <input type="text" id="store-remarks-input" placeholder="例如: 滿500元起送，不提供塑膠袋" style="padding: 0.5rem 0.75rem; font-size: 0.9rem;">
+                </div>
+              </div>
+
               <div id="items-editor-container">
                 <!-- Dynamically populated items row -->
                 <div style="text-align: center; color: var(--text-muted); padding: 2rem 0;">無選取店家</div>
@@ -159,7 +178,7 @@
     const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzHajWdfncHuR7LU2JsR1PpNTKyFKgv5CmeyGyAKPBuNTKI9QLYZyvJy1ci_sL2COgy/exec'; // 您可以在此填入預設的 API 網址，這樣其他人打開此檔案就免設定直接使用！
     let apiUrl = localStorage.getItem(API_KEY_STORAGE) || DEFAULT_API_URL;
     
-    let stores = []; // unique stores
+    let storesState = []; // unique stores info [{store, address, phone, remarks}]
     let menuState = []; // all menu items [{store, item, price}]
     let activeStore = null;
     let serverActiveStore = null; // active store stored in config
@@ -185,6 +204,11 @@
     const menuStatusMsg = document.getElementById('menu-status-msg');
     
     const btnClearOrders = document.getElementById('btn-clear-orders');
+    
+    const storeDetailsSection = document.getElementById('store-details-section');
+    const storeAddressInput = document.getElementById('store-address-input');
+    const storePhoneInput = document.getElementById('store-phone-input');
+    const storeRemarksInput = document.getElementById('store-remarks-input');
 
     // Page Init
     window.addEventListener('DOMContentLoaded', () => {
@@ -207,7 +231,10 @@
       } else {
         showStatus(apiStatusMsg, '⚠️ 尚未設定 Google Sheets API URL。目前為離線預覽狀態，設定 API 即可存檔。', 'info');
         // Preset mock data so admin has components to interact with immediately
-        stores = ['範例第一家', '範例第二家'];
+        storesState = [
+          { store: '範例第一家', address: '台北市大安區忠孝路1號', phone: '02-12345678', remarks: '外送請提早一小時預訂' },
+          { store: '範例第二家', address: '台北市信義區松壽路9號', phone: '02-98765432', remarks: '滿500元外送' }
+        ];
         menuState = [
           { store: '範例第一家', item: '排骨便當', price: 100 },
           { store: '範例第一家', item: '雞腿便當', price: 120 },
@@ -303,14 +330,23 @@
         // Load menu
         menuState = data.menu || [];
         
-        // Extract stores
-        stores = [...new Set(menuState.map(m => m.store))];
+        // Load stores details
+        storesState = data.stores || [];
+        
+        // Sync storesState with menuState just in case menu has stores not in storesState
+        const menuStores = [...new Set(menuState.map(m => m.store))];
+        menuStores.forEach(name => {
+          if (!storesState.some(s => s.store === name)) {
+            storesState.push({ store: name, address: '', phone: '', remarks: '' });
+          }
+        });
         
         // Load active store config
         serverActiveStore = data.activeStore || null;
         
-        if (stores.length > 0) {
-          activeStore = stores[0];
+        const storeNames = storesState.map(s => s.store);
+        if (storeNames.length > 0) {
+          activeStore = storeNames[0];
         } else {
           activeStore = null;
         }
@@ -415,12 +451,17 @@
       const trimmed = storeName.trim();
       if (!trimmed) return;
 
-      if (stores.includes(trimmed)) {
+      if (storesState.some(s => s.store === trimmed)) {
         alert('店家名稱已存在！');
         return;
       }
 
-      stores.push(trimmed);
+      storesState.push({
+        store: trimmed,
+        address: '',
+        phone: '',
+        remarks: ''
+      });
       activeStore = trimmed;
 
       // Add a default item so it's not empty
@@ -437,12 +478,13 @@
     // Render Store Sidebar
     function renderStoreNav() {
       storeNavList.innerHTML = '';
-      if (stores.length === 0) {
+      if (storesState.length === 0) {
         storeNavList.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1rem 0;">暫無店家</div>';
         return;
       }
 
-      stores.forEach(store => {
+      storesState.forEach(storeObj => {
+        const store = storeObj.store;
         const item = document.createElement('div');
         const isActive = serverActiveStore === store;
         item.className = `store-nav-item ${activeStore === store ? 'active' : ''}`;
@@ -455,11 +497,12 @@
         item.addEventListener('click', (e) => {
           if (e.target.classList.contains('delete-store-btn')) {
             // Delete Store Action
-            if (confirm(`確定要刪除店家「${store}」及其所有菜單品項嗎？`)) {
-              stores = stores.filter(s => s !== store);
+            if (confirm(`確定要刪除店家「${store}」及其所有菜單品項與資訊嗎？`)) {
+              storesState = storesState.filter(s => s.store !== store);
               menuState = menuState.filter(m => m.store !== store);
               if (activeStore === store) {
-                activeStore = stores.length > 0 ? stores[0] : null;
+                const storeNames = storesState.map(s => s.store);
+                activeStore = storeNames.length > 0 ? storeNames[0] : null;
               }
               renderStoreNav();
               renderItemsEditor();
@@ -483,6 +526,7 @@
         activeStoreTitle.innerText = '請先新增或選擇店家';
         btnAddItem.style.display = 'none';
         document.getElementById('btn-set-active-store').style.display = 'none';
+        storeDetailsSection.style.display = 'none';
         itemsEditorContainer.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem 0;">無選取店家</div>';
         return;
       }
@@ -490,6 +534,19 @@
       activeStoreTitle.innerText = `正在編輯：${activeStore}`;
       btnAddItem.style.display = 'block';
       document.getElementById('btn-set-active-store').style.display = 'block';
+      storeDetailsSection.style.display = 'block';
+
+      // Find or create store info
+      let storeInfo = storesState.find(s => s.store === activeStore);
+      if (!storeInfo) {
+        storeInfo = { store: activeStore, address: '', phone: '', remarks: '' };
+        storesState.push(storeInfo);
+      }
+
+      // Populate input values
+      storeAddressInput.value = storeInfo.address || '';
+      storePhoneInput.value = storeInfo.phone || '';
+      storeRemarksInput.value = storeInfo.remarks || '';
 
       const items = menuState.filter(m => m.store === activeStore);
 
@@ -577,7 +634,8 @@
           mode: 'cors',
           body: JSON.stringify({
             action: 'updateMenu',
-            menu: validMenu
+            menu: validMenu,
+            stores: storesState
           })
         });
 
@@ -693,6 +751,28 @@
         banner.style.display = 'block';
       }
     }
+
+    // Input listeners for Store Details
+    storeAddressInput.addEventListener('input', (e) => {
+      if (activeStore) {
+        const storeInfo = storesState.find(s => s.store === activeStore);
+        if (storeInfo) storeInfo.address = e.target.value;
+      }
+    });
+
+    storePhoneInput.addEventListener('input', (e) => {
+      if (activeStore) {
+        const storeInfo = storesState.find(s => s.store === activeStore);
+        if (storeInfo) storeInfo.phone = e.target.value;
+      }
+    });
+
+    storeRemarksInput.addEventListener('input', (e) => {
+      if (activeStore) {
+        const storeInfo = storesState.find(s => s.store === activeStore);
+        if (storeInfo) storeInfo.remarks = e.target.value;
+      }
+    });
 
     // Helper functions
     function showStatus(element, msg, type) {
