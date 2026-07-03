@@ -142,6 +142,18 @@
   </div>
 
   <script>
+    // 驗證管理者認證狀態，防範使用者直接輸入或點擊 admin.html 進入後台
+    const AUTH_KEY = 'admin_authenticated';
+    if (sessionStorage.getItem(AUTH_KEY) !== 'true') {
+      const pw = prompt('🔒 請輸入管理密碼以進入後台：');
+      if (pw === 'water603') {
+        sessionStorage.setItem(AUTH_KEY, 'true');
+      } else {
+        alert('密碼錯誤！將返回點餐頁面。');
+        window.location.href = 'index.html';
+      }
+    }
+
     // Config & States
     const API_KEY_STORAGE = 'lunchbox_api_url';
     const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzHajWdfncHuR7LU2JsR1PpNTKyFKgv5CmeyGyAKPBuNTKI9QLYZyvJy1ci_sL2COgy/exec'; // 您可以在此填入預設的 API 網址，這樣其他人打開此檔案就免設定直接使用！
