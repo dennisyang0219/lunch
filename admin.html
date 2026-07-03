@@ -46,6 +46,9 @@
           ※ 需要將 Google 試算表的 Apps Script 部署為網頁應用程式 (Web App) 並設定存取權為「所有人 (Anyone)」。
         </p>
       </div>
+      <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+        <button class="btn btn-secondary btn-sm" id="btn-copy-share-link" style="display: none; align-items: center; gap: 0.25rem;">📋 複製點餐分享連結給同事</button>
+      </div>
       <div id="api-status-msg" class="status-msg"></div>
     </section>
 
@@ -141,7 +144,8 @@
   <script>
     // Config & States
     const API_KEY_STORAGE = 'lunchbox_api_url';
-    let apiUrl = localStorage.getItem(API_KEY_STORAGE);
+    const DEFAULT_API_URL = ''; // 您可以在此填入預設的 API 網址，這樣其他人打開此檔案就免設定直接使用！
+    let apiUrl = localStorage.getItem(API_KEY_STORAGE) || DEFAULT_API_URL;
     
     let stores = []; // unique stores
     let menuState = []; // all menu items [{store, item, price}]
@@ -152,6 +156,7 @@
     const apiUrlInput = document.getElementById('api-url-input');
     const btnSaveApi = document.getElementById('btn-save-api');
     const apiStatusMsg = document.getElementById('api-status-msg');
+    const btnCopyShareLink = document.getElementById('btn-copy-share-link');
     
     const adminMainPanel = document.getElementById('admin-main-panel');
     const deadlineInput = document.getElementById('deadline-input');
@@ -171,8 +176,21 @@
 
     // Page Init
     window.addEventListener('DOMContentLoaded', () => {
+      // Check query parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      const apiParam = urlParams.get('api');
+      if (apiParam) {
+        localStorage.setItem(API_KEY_STORAGE, apiParam);
+        apiUrl = apiParam;
+      }
+      if (apiParam && window.history.replaceState) {
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+
       if (apiUrl) {
         apiUrlInput.value = apiUrl;
+        btnCopyShareLink.style.display = 'inline-flex';
         fetchAdminData();
       } else {
         showStatus(apiStatusMsg, '⚠️ 尚未設定 Google Sheets API URL。目前為離線預覽狀態，設定 API 即可存檔。', 'info');
@@ -233,8 +251,23 @@
       
       localStorage.setItem(API_KEY_STORAGE, url);
       apiUrl = url;
+      btnCopyShareLink.style.display = 'inline-flex';
       showStatus(apiStatusMsg, 'API 網址儲存成功！開始載入試算表資料...', 'success');
       fetchAdminData();
+    });
+
+    // Copy Shareable Link Listener
+    btnCopyShareLink.addEventListener('click', () => {
+      if (!apiUrl) return;
+      const currentUrl = window.location.href;
+      const indexUrl = currentUrl.replace('admin.html', 'index.html');
+      const shareUrl = `${indexUrl.split('?')[0]}?api=${encodeURIComponent(apiUrl)}`;
+      
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        alert('📋 點餐連結已複製到剪貼簿！\n貼給同事後，他們打開該連結即可自動帶入 API，免重新設定！');
+      }).catch(err => {
+        prompt('複製失敗，請手動複製以下分享連結：', shareUrl);
+      });
     });
 
     // Fetch existing menu and deadline
