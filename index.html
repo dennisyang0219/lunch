@@ -14,7 +14,7 @@
         <span class="logo-icon">🍱</span>
         <div>
           <h1>中午吃什麼？</h1>
-          <p style="font-size: 0.8rem; color: var(--text-secondary);">便當點餐系統</p>
+          <p style="font-size: 0.8rem; color: var(--text-secondary);">團購便當點餐系統</p>
         </div>
       </div>
       <button class="btn btn-secondary btn-sm" id="btn-go-admin">⚙️ 管理者後台</button>
@@ -222,6 +222,7 @@
     function verifyPassword() {
       const password = adminPasswordInput.value.trim();
       if (password === 'water603') {
+        sessionStorage.setItem('admin_authenticated', 'true');
         window.location.href = 'admin.html';
       } else {
         passwordError.style.display = 'block';
