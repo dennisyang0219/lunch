@@ -124,7 +124,8 @@
     // Config
     const API_KEY_STORAGE = 'lunchbox_api_url';
     const USER_NAME_STORAGE = 'lunchbox_username';
-    let apiUrl = localStorage.getItem(API_KEY_STORAGE);
+    const DEFAULT_API_URL = ''; // 您可以在此填入預設的 API 網址，這樣其他人打開此檔案就免設定直接使用！
+    let apiUrl = localStorage.getItem(API_KEY_STORAGE) || DEFAULT_API_URL;
     let menuData = [];
     let ordersData = [];
     let deadlineTime = null;
@@ -156,6 +157,18 @@
 
     // Page Init
     window.addEventListener('DOMContentLoaded', () => {
+      // Check query parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      const apiParam = urlParams.get('api');
+      if (apiParam) {
+        localStorage.setItem(API_KEY_STORAGE, apiParam);
+        apiUrl = apiParam;
+      }
+      if (apiParam && window.history.replaceState) {
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+
       // Restore username
       const savedName = localStorage.getItem(USER_NAME_STORAGE);
       if (savedName) {
