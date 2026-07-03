@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>訂便當系統</title>
+  <title>中午吃什麼？- 訂便當系統</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -477,18 +477,19 @@
       // 1. Calculate count for each item
       const itemCounts = {};
       
-      ordersData.forEach(ord => {
-        const key = `${ord.store} - ${ord.item}`;
+      // Filter orders to only match the currently active store config
+      const filteredOrders = ordersData.filter(ord => ord.store === activeStoreConfig);
+      
+      filteredOrders.forEach(ord => {
+        const key = ord.item;
         if (!itemCounts[key]) {
           itemCounts[key] = {
             store: ord.store,
             item: ord.item,
-            count: 0,
-            people: []
+            count: 0
           };
         }
         itemCounts[key].count += 1;
-        itemCounts[key].people.push(ord.name);
       });
 
       // Populate Stats Cards Grid
@@ -496,7 +497,7 @@
       const statItems = Object.values(itemCounts).sort((a, b) => b.count - a.count);
       
       if (statItems.length === 0) {
-        statsSummary.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 1rem 0;">目前尚無人點餐，快當第一個吧！</div>';
+        statsSummary.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 1rem 0;">目前此店家尚無人點餐，快當第一個吧！</div>';
       } else {
         statItems.forEach(item => {
           const box = document.createElement('div');
@@ -512,13 +513,13 @@
 
       // 2. Populate detailed list table
       ordersListBody.innerHTML = '';
-      if (ordersData.length === 0) {
-        ordersListBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">目前無任何訂餐資料</td></tr>';
+      if (filteredOrders.length === 0) {
+        ordersListBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">目前無此店家的點餐資料</td></tr>';
         return;
       }
 
       // Show newest orders on top
-      const sortedOrders = [...ordersData].reverse();
+      const sortedOrders = [...filteredOrders].reverse();
       
       sortedOrders.forEach(ord => {
         const tr = document.createElement('tr');
@@ -526,13 +527,12 @@
         let dateStr = '未知';
         if (ord.timestamp) {
           const d = new Date(ord.timestamp);
-          // Format as MM/DD HH:MM
           dateStr = `${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
         }
 
         tr.innerHTML = `
           <td style="font-weight: 500;">${escapeHtml(ord.name)}</td>
-          <td><span style="background: rgba(255,255,255,0.06); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">${escapeHtml(ord.store)}</span></td>
+          <td><span style="background: rgba(2, 132, 199, 0.05); color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">${escapeHtml(ord.store)}</span></td>
           <td>${escapeHtml(ord.item)}</td>
           <td style="color: var(--text-secondary); font-weight: 500;">$${ord.price}</td>
           <td style="font-size: 0.8rem; color: var(--text-muted);">${dateStr}</td>
