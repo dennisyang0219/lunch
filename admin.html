@@ -182,6 +182,7 @@
     let menuState = []; // all menu items [{store, item, price}]
     let activeStore = null;
     let serverActiveStore = null; // active store stored in config
+    let historyData = []; // store rotation summaries [{date, store, count, amount}]
 
     // Elements
     const apiUrlInput = document.getElementById('api-url-input');
@@ -333,6 +334,9 @@
         // Load stores details
         storesState = data.stores || [];
         
+        // Load history rotation summaries
+        historyData = data.history || [];
+        
         // Sync storesState with menuState just in case menu has stores not in storesState
         const menuStores = [...new Set(menuState.map(m => m.store))];
         menuStores.forEach(name => {
@@ -475,7 +479,7 @@
       renderItemsEditor();
     });
 
-    // Render Store Sidebar
+    // Render Store Sidebar with LRU recommendation sorting
     function renderStoreNav() {
       storeNavList.innerHTML = '';
       if (storesState.length === 0) {
@@ -483,13 +487,63 @@
         return;
       }
 
+      // Calculate days since last order
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      
       storesState.forEach(storeObj => {
+        const matches = historyData.filter(h => h.store === storeObj.store);
+        if (matches.length === 0) {
+          storeObj.daysSinceLast = 999999; // Never ordered
+          storeObj.lastOrderLabel = '從未點餐';
+        } else {
+          let maxDate = null;
+          matches.forEach(m => {
+            const d = new Date(m.date);
+            d.setHours(0,0,0,0);
+            if (!maxDate || d > maxDate) {
+              maxDate = d;
+            }
+          });
+          
+          if (maxDate) {
+            const diffTime = today - maxDate;
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            storeObj.daysSinceLast = diffDays;
+            storeObj.lastOrderLabel = diffDays === 0 ? '今天已點' : `${diffDays} 天前`;
+          } else {
+            storeObj.daysSinceLast = 999999;
+            storeObj.lastOrderLabel = '從未點餐';
+          }
+        }
+      });
+
+      // Sort storesState: longest daysSinceLast first (descending)
+      storesState.sort((a, b) => b.daysSinceLast - a.daysSinceLast);
+
+      storesState.forEach((storeObj, index) => {
         const store = storeObj.store;
         const item = document.createElement('div');
         const isActive = serverActiveStore === store;
+        const isRecommended = index === 0; // Top-most is the most recommended
+        
+        let labelSuffix = '';
+        if (storeObj.daysSinceLast === 999999) {
+          labelSuffix = ' <span style="font-size:0.75rem; color:var(--text-muted);">(從未點餐)</span>';
+        } else {
+          labelSuffix = ` <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:normal;">(${storeObj.lastOrderLabel})</span>`;
+        }
+        
         item.className = `store-nav-item ${activeStore === store ? 'active' : ''}`;
+        
+        const recBadge = isRecommended ? ' <span style="font-size:0.7rem; background:var(--accent-gradient); color:#fff; padding:0.1rem 0.35rem; border-radius:4px; margin-left:0.25rem; font-weight: 500;">💡 推薦輪替</span>' : '';
+        
         item.innerHTML = `
-          <span class="store-name">${isActive ? '✅ ' : ''}${escapeHtml(store)}</span>
+          <span class="store-name" style="display:flex; align-items:center; gap:0.2rem; flex-wrap:wrap;">
+            <span>${isActive ? '✅ ' : ''}${escapeHtml(store)}</span>
+            ${recBadge}
+            ${labelSuffix}
+          </span>
           <span class="delete-store-btn" style="color: var(--danger); font-size: 0.85rem;" title="刪除店家">🗑️</span>
         `;
 
