@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>中午吃什麼？- 訂便當系統</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="logo-group">
+        <span class="logo-icon">🍱</span>
+        <div>
+          <h1>中午吃什麼？</h1>
+          <p style="font-size: 0.8rem; color: var(--text-secondary);">團購便當點餐系統</p>
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="btn-go-admin">⚙️ 管理者後台</button>
+    </header>
+
+    <!-- API Warning -->
+    <div id="api-warning" class="status-msg info" style="display: none;">
+      
+    </div>
+
+    <!-- Timer Banner -->
+    <div class="timer-banner" id="timer-container" style="display: none;">
+      <div class="timer-title">
+        <span>🕒</span>
+        <span id="timer-status-text">點餐截止倒數：</span>
+      </div>
+      <div class="timer-countdown" id="countdown">--:--:--</div>
+    </div>
+
+    <div id="main-content">
+      <!-- Order Form -->
+      <section class="card" id="order-form-card">
+        <h2 class="card-title"><span>✍️</span> 我要點餐</h2>
+        
+        <div id="submit-status" class="status-msg"></div>
+
+        <form id="order-form">
+          <div class="form-group">
+            <label for="user-name">👤 您的姓名</label>
+            <input type="text" id="user-name" required placeholder="請輸入姓名">
+          </div>
+
+          <div class="form-group">
+            <label for="store-select">🏪 選擇便當店</label>
+            <select id="store-select" required>
+              <option value="" disabled selected>載入中...</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>🍱 選擇便當品項 (可多選)</label>
+            <div class="menu-options-list" id="menu-items-container">
+              <div class="empty-menu-placeholder">請先選擇便當店</div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn" style="width: 100%;" id="btn-submit">
+            <span>🚀</span> 送出訂單
+          </button>
+        </form>
+      </section>
+
+      <!-- Stats Panel -->
+      <section class="card">
+        <h2 class="card-title"><span>📊</span> 目前訂單統計看板</h2>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <p style="font-size: 0.9rem; color: var(--text-secondary);">大家點了些什麼？看這裡跟著點就對了！</p>
+          <button class="btn btn-secondary btn-sm" id="btn-refresh-stats">🔄 重新整理</button>
+        </div>
+
+        <div class="stats-grid" id="stats-summary">
+          <!-- Stats count will be inserted here -->
+        </div>
+
+        <div class="table-responsive" style="margin-top: 1.5rem;">
+          <table>
+            <thead>
+              <tr>
+                <th>姓名</th>
+                <th>店家</th>
+                <th>點餐品項</th>
+                <th>價格</th>
+                <th>點餐時間</th>
+              </tr>
+            </thead>
+            <tbody id="orders-list-body">
+              <tr>
+                <td colspan="5" style="text-align: center; color: var(--text-muted);">載入訂單中...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Password Modal -->
+  <div class="modal-overlay" id="password-modal">
+    <div class="modal">
+      <h3 class="modal-header">🔒 管理員驗證</h3>
+      <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">請輸入後台管理密碼：</p>
+      
+      <div class="form-group">
+        <input type="password" id="admin-password" placeholder="請輸入密碼" style="width: 100%; padding: 0.75rem 1rem; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: var(--text-primary);">
+        <p id="password-error" style="color: var(--danger); font-size: 0.8rem; margin-top: 0.25rem; display: none;">密碼錯誤，請再試一次</p>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary btn-sm" id="btn-close-modal">取消</button>
+        <button class="btn btn-sm" id="btn-submit-password">登入</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Config
+    const API_KEY_STORAGE = 'lunchbox_api_url';
+    const USER_NAME_STORAGE = 'lunchbox_username';
+    let apiUrl = localStorage.getItem(API_KEY_STORAGE);
+    let menuData = [];
+    let ordersData = [];
+    let deadlineTime = null;
+    let timerInterval = null;
+    let activeStoreConfig = null; // Locked active store from config
+
+    // Elements
+    const btnGoAdmin = document.getElementById('btn-go-admin');
+    const passwordModal = document.getElementById('password-modal');
+    const adminPasswordInput = document.getElementById('admin-password');
+    const btnSubmitPassword = document.getElementById('btn-submit-password');
+    const btnCloseModal = document.getElementById('btn-close-modal');
+    const passwordError = document.getElementById('password-error');
+    
+    const apiWarning = document.getElementById('api-warning');
+    const userNameInput = document.getElementById('user-name');
+    const storeSelect = document.getElementById('store-select');
+    const menuItemsContainer = document.getElementById('menu-items-container');
+    const orderForm = document.getElementById('order-form');
+    const btnSubmit = document.getElementById('btn-submit');
+    const submitStatus = document.getElementById('submit-status');
+    const btnRefreshStats = document.getElementById('btn-refresh-stats');
+    
+    const statsSummary = document.getElementById('stats-summary');
+    const ordersListBody = document.getElementById('orders-list-body');
+    const timerContainer = document.getElementById('timer-container');
+    const countdownEl = document.getElementById('countdown');
+    const timerStatusText = document.getElementById('timer-status-text');
+
+    // Page Init
+    window.addEventListener('DOMContentLoaded', () => {
+      // Restore username
+      const savedName = localStorage.getItem(USER_NAME_STORAGE);
+      if (savedName) {
+        userNameInput.value = savedName;
+      }
+
+      // Check API URL
+      if (!apiUrl) {
+        apiWarning.style.display = 'block';
+        storeSelect.innerHTML = '<option value="" disabled selected>請先設定 API URL</option>';
+        ordersListBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">尚未設定 API</td></tr>';
+        return;
+      }
+
+      fetchData();
+    });
+
+    // Refresh data
+    btnRefreshStats.addEventListener('click', () => {
+      if (!apiUrl) return;
+      btnRefreshStats.classList.add('btn-disabled');
+      btnRefreshStats.innerHTML = '<span class="spinner"></span> 重新整理中...';
+      fetchData().finally(() => {
+        btnRefreshStats.classList.remove('btn-disabled');
+        btnRefreshStats.innerHTML = '🔄 重新整理';
+      });
+    });
+
+    // Save username when typed
+    userNameInput.addEventListener('input', (e) => {
+      localStorage.setItem(USER_NAME_STORAGE, e.target.value.trim());
+    });
+
+    // Password Modal Logic
+    btnGoAdmin.addEventListener('click', () => {
+      passwordModal.classList.add('active');
+      adminPasswordInput.focus();
+    });
+
+    btnCloseModal.addEventListener('click', () => {
+      passwordModal.classList.remove('active');
+      adminPasswordInput.value = '';
+      passwordError.style.display = 'none';
+    });
+
+    btnSubmitPassword.addEventListener('click', verifyPassword);
+    adminPasswordInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') verifyPassword();
+    });
+
+    function verifyPassword() {
+      const password = adminPasswordInput.value.trim();
+      if (password === 'water603') {
+        window.location.href = 'admin.html';
+      } else {
+        passwordError.style.display = 'block';
+        adminPasswordInput.value = '';
+        adminPasswordInput.focus();
+      }
+    }
+
+    // Fetch Menu & Orders & Deadline
+    async function fetchData() {
+      try {
+        const response = await fetch(apiUrl);
+        if (!response.ok) throw new Error('API 回應錯誤');
+        
+        const data = await response.json();
+        menuData = data.menu || [];
+        ordersData = data.orders || [];
+        activeStoreConfig = data.activeStore || null;
+        
+        // Handle Deadline
+        if (data.deadline) {
+          deadlineTime = new Date(data.deadline);
+          startTimer();
+        } else {
+          deadlineTime = null;
+          clearInterval(timerInterval);
+          timerContainer.style.display = 'none';
+        }
+
+        renderStoreSelect();
+        renderStats();
+      } catch (err) {
+        console.error(err);
+        showStatus('載入資料失敗，請檢查 API URL 是否正確。', 'error');
+      }
+    }
+
+    // Start countdown timer
+    function startTimer() {
+      clearInterval(timerInterval);
+      timerContainer.style.display = 'flex';
+      
+      function updateTimer() {
+        const now = new Date();
+        const diff = deadlineTime - now;
+
+        if (diff <= 0) {
+          clearInterval(timerInterval);
+          countdownEl.innerHTML = '點餐已截止';
+          countdownEl.className = 'timer-countdown ended';
+          timerStatusText.innerText = '點餐狀態：';
+          disableOrdering(true);
+        } else {
+          disableOrdering(false);
+          const hours = Math.floor(diff / (1000 * 60 * 60));
+          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+          
+          countdownEl.innerHTML = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+          
+          // Show alert if less than 15 mins (900,000 ms)
+          if (diff < 15 * 60 * 1000) {
+            countdownEl.className = 'timer-countdown danger';
+            timerStatusText.innerText = '⚠️ 即將截止點餐：';
+          } else {
+            countdownEl.className = 'timer-countdown';
+            timerStatusText.innerText = '🕒 點餐截止倒數：';
+          }
+        }
+      }
+
+      updateTimer();
+      timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    function disableOrdering(disabled) {
+      if (disabled) {
+        userNameInput.disabled = true;
+        storeSelect.disabled = true;
+        btnSubmit.disabled = true;
+        btnSubmit.classList.add('btn-disabled');
+        
+        if (deadlineTime && (new Date() > deadlineTime)) {
+          btnSubmit.innerHTML = '❌ 點餐已截止';
+        } else if (!activeStoreConfig) {
+          btnSubmit.innerHTML = '❌ 尚未指定點餐店家';
+        } else {
+          btnSubmit.innerHTML = '❌ 無法點餐';
+        }
+        
+        // Disable checkboxes
+        document.querySelectorAll('input[name="lunchbox-item"]').forEach(cb => {
+          cb.disabled = true;
+        });
+      } else {
+        userNameInput.disabled = false;
+        storeSelect.disabled = !!activeStoreConfig; // Keep disabled if locked by admin
+        btnSubmit.disabled = false;
+        btnSubmit.classList.remove('btn-disabled');
+        btnSubmit.innerHTML = '🚀 送出訂單';
+      }
+    }
+
+    // Populate Store Select
+    function renderStoreSelect() {
+      const stores = [...new Set(menuData.map(m => m.store))];
+      const storeLabel = document.querySelector('label[for="store-select"]');
+      
+      if (stores.length === 0) {
+        storeSelect.innerHTML = '<option value="" disabled selected>目前無可用的便當店</option>';
+        menuItemsContainer.innerHTML = '<div class="empty-menu-placeholder">請聯絡管理員設定菜單</div>';
+        return;
+      }
+
+      if (activeStoreConfig) {
+        // Locked active store by admin
+        storeLabel.innerHTML = '🏪 本次指定點餐店家 <span style="font-size: 0.75rem; color: var(--success); background: rgba(16,185,129,0.15); padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.25rem;">已鎖定</span>';
+        storeSelect.innerHTML = `<option value="${activeStoreConfig}" selected>${activeStoreConfig}</option>`;
+        storeSelect.disabled = true;
+        renderMenuItems(activeStoreConfig);
+        
+        // Enable controls if within deadline
+        if (!deadlineTime || (new Date() <= deadlineTime)) {
+          disableOrdering(false);
+        }
+      } else {
+        // No active store designated yet
+        storeLabel.innerHTML = '🏪 選擇便當店 <span style="font-size: 0.75rem; color: var(--warning); background: rgba(245,158,11,0.15); padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.25rem;">等待指定</span>';
+        storeSelect.innerHTML = '<option value="" disabled selected>⚠️ 請等待管理者指定本次點餐店家</option>';
+        storeSelect.disabled = true;
+        menuItemsContainer.innerHTML = '<div class="empty-menu-placeholder">請等待管理員設定本次點餐店家</div>';
+        disableOrdering(true);
+      }
+    }
+
+    // Render Menu Checkboxes for selected store
+    storeSelect.addEventListener('change', (e) => {
+      renderMenuItems(e.target.value);
+    });
+
+    function renderMenuItems(storeName) {
+      menuItemsContainer.innerHTML = '';
+      const items = menuData.filter(m => m.store === storeName);
+
+      if (items.length === 0) {
+        menuItemsContainer.innerHTML = '<div class="empty-menu-placeholder">此店家無品項</div>';
+        return;
+      }
+
+      items.forEach(item => {
+        const label = document.createElement('label');
+        label.className = 'checkbox-container';
+        label.innerHTML = `
+          ${item.item}
+          <span class="item-price">$${item.price}</span>
+          <input type="checkbox" name="lunchbox-item" value="${item.item}" data-price="${item.price}">
+          <span class="checkmark"></span>
+        `;
+        menuItemsContainer.appendChild(label);
+      });
+
+      // If deadline already passed, make sure newly rendered checkboxes are disabled
+      if (deadlineTime && (new Date() > deadlineTime)) {
+        document.querySelectorAll('input[name="lunchbox-item"]').forEach(cb => {
+          cb.disabled = true;
+        });
+      }
+    }
+
+    // Submit Order
+    orderForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const name = userNameInput.value.trim();
+      const store = storeSelect.value;
+      
+      if (!name) {
+        showStatus('請輸入您的姓名', 'error');
+        return;
+      }
+      if (!store) {
+        showStatus('請選擇便當店', 'error');
+        return;
+      }
+
+      const checkedItems = [];
+      document.querySelectorAll('input[name="lunchbox-item"]:checked').forEach(cb => {
+        checkedItems.push({
+          item: cb.value,
+          price: parseFloat(cb.getAttribute('data-price')) || 0
+        });
+      });
+
+      if (checkedItems.length === 0) {
+        showStatus('請至少勾選一項便當品項！', 'error');
+        return;
+      }
+
+      // Check client side deadline once more
+      if (deadlineTime && (new Date() > deadlineTime)) {
+        showStatus('抱歉，已過截止時間，無法送出訂單。', 'error');
+        return;
+      }
+
+      // Start submit loader
+      btnSubmit.disabled = true;
+      btnSubmit.classList.add('btn-disabled');
+      btnSubmit.innerHTML = '<span class="spinner"></span> 送出中...';
+      showStatus('正在傳送訂單至 Google Sheet...', 'info');
+
+      try {
+        const payload = {
+          action: 'submitOrder',
+          name: name,
+          store: store,
+          items: checkedItems
+        };
+
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          mode: 'cors',
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error('伺服器回應錯誤');
+        const resData = await response.json();
+        
+        if (resData.success) {
+          showStatus('🎉 訂單送出成功！已寫入試算表。', 'success');
+          // Clear selections
+          document.querySelectorAll('input[name="lunchbox-item"]:checked').forEach(cb => {
+            cb.checked = false;
+          });
+          // Refresh statistics
+          await fetchData();
+        } else {
+          throw new Error(resData.error || '不明錯誤');
+        }
+      } catch (err) {
+        console.error(err);
+        showStatus(`送出訂單失敗: ${err.message}`, 'error');
+      } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.classList.remove('btn-disabled');
+        btnSubmit.innerHTML = '🚀 送出訂單';
+      }
+    });
+
+    // Render Stats Dashboard & Detailed List
+    function renderStats() {
+      // 1. Calculate count for each item
+      const itemCounts = {};
+      
+      ordersData.forEach(ord => {
+        const key = `${ord.store} - ${ord.item}`;
+        if (!itemCounts[key]) {
+          itemCounts[key] = {
+            store: ord.store,
+            item: ord.item,
+            count: 0,
+            people: []
+          };
+        }
+        itemCounts[key].count += 1;
+        itemCounts[key].people.push(ord.name);
+      });
+
+      // Populate Stats Cards Grid
+      statsSummary.innerHTML = '';
+      const statItems = Object.values(itemCounts).sort((a, b) => b.count - a.count);
+      
+      if (statItems.length === 0) {
+        statsSummary.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 1rem 0;">目前尚無人點餐，快當第一個吧！</div>';
+      } else {
+        statItems.forEach(item => {
+          const box = document.createElement('div');
+          box.className = 'stat-box';
+          
+          // Limit people names display length
+          const uniquePeople = [...new Set(item.people)];
+          const peopleStr = uniquePeople.join(', ');
+          
+          box.innerHTML = `
+            <div class="stat-label" title="${item.item}">${item.item}</div>
+            <div class="stat-num">${item.count} <span style="font-size: 1rem; color: var(--text-secondary)">份</span></div>
+            <div class="stat-details" title="${peopleStr}">(${item.store}) ${peopleStr}</div>
+          `;
+          statsSummary.appendChild(box);
+        });
+      }
+
+      // 2. Populate detailed list table
+      ordersListBody.innerHTML = '';
+      if (ordersData.length === 0) {
+        ordersListBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">目前無任何訂餐資料</td></tr>';
+        return;
+      }
+
+      // Show newest orders on top
+      const sortedOrders = [...ordersData].reverse();
+      
+      sortedOrders.forEach(ord => {
+        const tr = document.createElement('tr');
+        
+        let dateStr = '未知';
+        if (ord.timestamp) {
+          const d = new Date(ord.timestamp);
+          // Format as MM/DD HH:MM
+          dateStr = `${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+        }
+
+        tr.innerHTML = `
+          <td style="font-weight: 500;">${escapeHtml(ord.name)}</td>
+          <td><span style="background: rgba(255,255,255,0.06); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">${escapeHtml(ord.store)}</span></td>
+          <td>${escapeHtml(ord.item)}</td>
+          <td style="color: var(--text-secondary); font-weight: 500;">$${ord.price}</td>
+          <td style="font-size: 0.8rem; color: var(--text-muted);">${dateStr}</td>
+        `;
+        ordersListBody.appendChild(tr);
+      });
+    }
+
+    // Helper functions
+    function showStatus(msg, type) {
+      submitStatus.innerText = msg;
+      submitStatus.className = `status-msg ${type}`;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>

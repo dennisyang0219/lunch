@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>後台管理 - 訂便當系統</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .deadline-editor-layout {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1rem;
+      align-items: flex-end;
+    }
+    @media(max-width: 640px) {
+      .deadline-editor-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="logo-group">
+        <span class="logo-icon">⚙️</span>
+        <div>
+          <h1>便當系統管理後台</h1>
+          <p style="font-size: 0.8rem; color: var(--text-secondary);">設定截止時間、管理菜單與訂單</p>
+        </div>
+      </div>
+      <a href="index.html" class="btn btn-secondary btn-sm">➡️ 回到點餐頁面</a>
+    </header>
+
+    <!-- API Config Card -->
+    <section class="card">
+      <h2 class="card-title"><span>🔗</span> Google Sheets API 設定</h2>
+      <div class="form-group">
+        <label for="api-url-input">Google Apps Script Web App URL</label>
+        <div class="api-config">
+          <input type="text" id="api-url-input" placeholder="請貼上部署後取得的網頁應用程式網址">
+          <button class="btn btn-accent" id="btn-save-api">儲存</button>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
+          ※ 需要將 Google 試算表的 Apps Script 部署為網頁應用程式 (Web App) 並設定存取權為「所有人 (Anyone)」。
+        </p>
+      </div>
+      <div id="api-status-msg" class="status-msg"></div>
+    </section>
+
+    <!-- Always visible main panel -->
+    <div id="admin-main-panel">
+      
+      <!-- Deadline Settings Card -->
+      <section class="card">
+        <h2 class="card-title"><span>🕒</span> 點餐截止時間設定</h2>
+        <div id="deadline-status-msg" class="status-msg"></div>
+        
+        <div class="deadline-editor-layout">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="deadline-input">設定截止日期與時間</label>
+            <input type="datetime-local" id="deadline-input">
+          </div>
+          <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+            <button class="btn btn-secondary" id="btn-clear-deadline">清除時間</button>
+            <button class="btn" id="btn-save-deadline">儲存截止時間</button>
+          </div>
+        </div>
+        
+        <!-- Quick presets -->
+        <div class="presets-container" style="margin-top: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+          <span style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; width: 100%; margin-bottom: 0.25rem; font-weight: 500;">⚡ 快速設定截止時間：</span>
+          <button class="btn btn-secondary btn-sm preset-btn" data-time="08:50">今天上午 08:50</button>
+          <button class="btn btn-secondary btn-sm preset-btn" data-time="15:00">今天下午 03:00 (15:00)</button>
+        </div>
+      </section>
+
+      <!-- Menu Management Card -->
+      <section class="card">
+        <h2 class="card-title"><span>🍔</span> 店家與便當菜單管理</h2>
+        <div id="menu-status-msg" class="status-msg"></div>
+        
+        <div id="current-active-store-banner" class="status-msg info" style="margin-bottom: 1rem; display: none;"></div>
+
+        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
+          新增左側店家，並於右側新增或修改該店的便當品項。修改完成後，請點擊下方的「同步菜單到 Google Sheet」儲存。
+        </p>
+
+        <div class="store-list-container">
+          <!-- Left side: Stores Nav -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <span style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">店家清單</span>
+              <button class="btn btn-secondary btn-sm" id="btn-add-store" style="padding: 0.25rem 0.5rem;">➕ 新增</button>
+            </div>
+            <div class="store-nav" id="store-nav-list">
+              <!-- Dynamically populated stores -->
+            </div>
+          </div>
+
+          <!-- Right side: Menu Items Editor -->
+          <div>
+            <div class="menu-items-editor">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                <span id="active-store-title" style="font-weight: 600; color: var(--text-primary);">請先新增或選擇店家</span>
+                <div style="display: flex; gap: 0.5rem;">
+                  <button class="btn btn-accent btn-sm" id="btn-set-active-store" style="display: none; padding: 0.25rem 0.5rem;">📢 設為本次點餐店家</button>
+                  <button class="btn btn-secondary btn-sm" id="btn-add-item" style="display: none; padding: 0.25rem 0.5rem;">➕ 新增品項</button>
+                </div>
+              </div>
+              <div id="items-editor-container">
+                <!-- Dynamically populated items row -->
+                <div style="text-align: center; color: var(--text-muted); padding: 2rem 0;">無選取店家</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 2rem; display: flex; justify-content: flex-end;">
+          <button class="btn btn-accent" id="btn-sync-menu" style="width: 100%; font-size: 1.1rem; padding: 1rem;">
+            💾 同步菜單到 Google Sheet
+          </button>
+        </div>
+      </section>
+
+      <!-- Danger Zone / Data Management -->
+      <section class="card" style="border-color: rgba(239, 68, 68, 0.2);">
+        <h2 class="card-title" style="color: var(--danger);">⚠️ 危險區域</h2>
+        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
+          此操作將會清空 Google Sheet 中的訂單工作表 (Orders)，開始新的一天點餐前可以使用此功能。
+        </p>
+        <button class="btn btn-danger" id="btn-clear-orders">
+          🗑️ 清空 Google Sheet 所有訂單
+        </button>
+      </section>
+
+    </div>
+  </div>
+
+  <script>
+    // Config & States
+    const API_KEY_STORAGE = 'lunchbox_api_url';
+    let apiUrl = localStorage.getItem(API_KEY_STORAGE);
+    
+    let stores = []; // unique stores
+    let menuState = []; // all menu items [{store, item, price}]
+    let activeStore = null;
+    let serverActiveStore = null; // active store stored in config
+
+    // Elements
+    const apiUrlInput = document.getElementById('api-url-input');
+    const btnSaveApi = document.getElementById('btn-save-api');
+    const apiStatusMsg = document.getElementById('api-status-msg');
+    
+    const adminMainPanel = document.getElementById('admin-main-panel');
+    const deadlineInput = document.getElementById('deadline-input');
+    const btnSaveDeadline = document.getElementById('btn-save-deadline');
+    const btnClearDeadline = document.getElementById('btn-clear-deadline');
+    const deadlineStatusMsg = document.getElementById('deadline-status-msg');
+
+    const storeNavList = document.getElementById('store-nav-list');
+    const activeStoreTitle = document.getElementById('active-store-title');
+    const itemsEditorContainer = document.getElementById('items-editor-container');
+    const btnAddStore = document.getElementById('btn-add-store');
+    const btnAddItem = document.getElementById('btn-add-item');
+    const btnSyncMenu = document.getElementById('btn-sync-menu');
+    const menuStatusMsg = document.getElementById('menu-status-msg');
+    
+    const btnClearOrders = document.getElementById('btn-clear-orders');
+
+    // Page Init
+    window.addEventListener('DOMContentLoaded', () => {
+      if (apiUrl) {
+        apiUrlInput.value = apiUrl;
+        fetchAdminData();
+      } else {
+        showStatus(apiStatusMsg, '⚠️ 尚未設定 Google Sheets API URL。目前為離線預覽狀態，設定 API 即可存檔。', 'info');
+        // Preset mock data so admin has components to interact with immediately
+        stores = ['範例第一家', '範例第二家'];
+        menuState = [
+          { store: '範例第一家', item: '排骨便當', price: 100 },
+          { store: '範例第一家', item: '雞腿便當', price: 120 },
+          { store: '範例第二家', item: '牛肉麵', price: 150 },
+          { store: '範例第二家', item: '水餃 (十顆)', price: 70 }
+        ];
+        activeStore = '範例第一家';
+        serverActiveStore = '範例第一家';
+        
+        updateActiveStoreBanner();
+        renderStoreNav();
+        renderItemsEditor();
+      }
+    });
+
+    // Quick presets listener
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const time = btn.getAttribute('data-time');
+        if (!time) return;
+        
+        let targetDate = new Date();
+        const [hours, minutes] = time.split(':');
+        targetDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        
+        let dayPrefix = '今天';
+        // If the time has already passed today, set to tomorrow
+        if (targetDate < new Date()) {
+          targetDate.setDate(targetDate.getDate() + 1);
+          dayPrefix = '明天';
+        }
+        
+        // Format to YYYY-MM-DDTHH:MM (local ISO)
+        const localISO = new Date(targetDate.getTime() - targetDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        deadlineInput.value = localISO;
+        
+        const timeLabel = hours === '08' ? '上午 08:50' : '下午 03:00';
+        showStatus(deadlineStatusMsg, `已選取：${dayPrefix}${timeLabel}，請點擊「儲存截止時間」存檔。`, 'info');
+      });
+    });
+
+    // Save API URL
+    btnSaveApi.addEventListener('click', () => {
+      const url = apiUrlInput.value.trim();
+      if (!url) {
+        showStatus(apiStatusMsg, '網址不能為空！', 'error');
+        return;
+      }
+      if (!url.startsWith('http')) {
+        showStatus(apiStatusMsg, '請輸入有效的網址 (以 http 或 https 開頭)', 'error');
+        return;
+      }
+      
+      localStorage.setItem(API_KEY_STORAGE, url);
+      apiUrl = url;
+      showStatus(apiStatusMsg, 'API 網址儲存成功！開始載入試算表資料...', 'success');
+      fetchAdminData();
+    });
+
+    // Fetch existing menu and deadline
+    async function fetchAdminData() {
+      try {
+        showStatus(menuStatusMsg, '正在載入雲端資料...', 'info');
+        const response = await fetch(apiUrl);
+        if (!response.ok) throw new Error('API 讀取失敗');
+        
+        const data = await response.json();
+        
+        // Load deadline
+        if (data.deadline) {
+          const d = new Date(data.deadline);
+          const localISO = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+          deadlineInput.value = localISO;
+        } else {
+          deadlineInput.value = '';
+        }
+
+        // Load menu
+        menuState = data.menu || [];
+        
+        // Extract stores
+        stores = [...new Set(menuState.map(m => m.store))];
+        
+        // Load active store config
+        serverActiveStore = data.activeStore || null;
+        
+        if (stores.length > 0) {
+          activeStore = stores[0];
+        } else {
+          activeStore = null;
+        }
+
+        updateActiveStoreBanner();
+        renderStoreNav();
+        renderItemsEditor();
+        showStatus(menuStatusMsg, '雲端資料載入成功！', 'success');
+        showStatus(apiStatusMsg, 'API 連線正常！', 'success');
+      } catch (err) {
+        console.error(err);
+        showStatus(apiStatusMsg, `無法與雲端連線，請檢查網址是否正確。錯誤資訊：${err.message}`, 'error');
+        showStatus(menuStatusMsg, '載入雲端資料失敗，已恢復為本地編輯模式。', 'error');
+      }
+    }
+
+    // Save Deadline
+    btnSaveDeadline.addEventListener('click', async () => {
+      if (!apiUrl) {
+        alert('請先在上方設定並儲存 Google Sheets API 網址！');
+        return;
+      }
+
+      const deadlineVal = deadlineInput.value;
+      if (!deadlineVal) {
+        showStatus(deadlineStatusMsg, '請先選取截止時間。若要清除，請按「清除時間」按鈕。', 'error');
+        return;
+      }
+
+      btnSaveDeadline.disabled = true;
+      btnSaveDeadline.innerHTML = '<span class="spinner"></span> 儲存中...';
+      
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          mode: 'cors',
+          body: JSON.stringify({
+            action: 'setDeadline',
+            deadline: deadlineVal
+          })
+        });
+        
+        if (!response.ok) throw new Error('連線錯誤');
+        const res = await response.json();
+        if (res.success) {
+          showStatus(deadlineStatusMsg, '截止時間設定成功！已寫入試算表。', 'success');
+        } else {
+          throw new Error(res.error || '不明錯誤');
+        }
+      } catch (err) {
+        showStatus(deadlineStatusMsg, `設定截止時間失敗: ${err.message}`, 'error');
+      } finally {
+        btnSaveDeadline.disabled = false;
+        btnSaveDeadline.innerHTML = '儲存截止時間';
+      }
+    });
+
+    // Clear Deadline
+    btnClearDeadline.addEventListener('click', async () => {
+      if (!apiUrl) {
+        deadlineInput.value = '';
+        showStatus(deadlineStatusMsg, '已清除本地設定時間。', 'success');
+        return;
+      }
+
+      if (!confirm('確定要清除截止時間嗎？清除後將不限制點餐時間。')) return;
+      
+      btnClearDeadline.disabled = true;
+      btnClearDeadline.innerHTML = '<span class="spinner"></span> 清除中...';
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          mode: 'cors',
+          body: JSON.stringify({
+            action: 'setDeadline',
+            deadline: ''
+          })
+        });
+        
+        if (!response.ok) throw new Error('連線錯誤');
+        const res = await response.json();
+        if (res.success) {
+          deadlineInput.value = '';
+          showStatus(deadlineStatusMsg, '截止時間已成功清除！', 'success');
+        } else {
+          throw new Error(res.error || '不明錯誤');
+        }
+      } catch (err) {
+        showStatus(deadlineStatusMsg, `清除截止時間失敗: ${err.message}`, 'error');
+      } finally {
+        btnClearDeadline.disabled = false;
+        btnClearDeadline.innerHTML = '清除時間';
+      }
+    });
+
+    // Add Store
+    btnAddStore.addEventListener('click', () => {
+      const storeName = prompt('請輸入新便當店的名稱：');
+      if (!storeName) return;
+      
+      const trimmed = storeName.trim();
+      if (!trimmed) return;
+
+      if (stores.includes(trimmed)) {
+        alert('店家名稱已存在！');
+        return;
+      }
+
+      stores.push(trimmed);
+      activeStore = trimmed;
+
+      // Add a default item so it's not empty
+      menuState.push({
+        store: trimmed,
+        item: '招牌便當',
+        price: 100
+      });
+
+      renderStoreNav();
+      renderItemsEditor();
+    });
+
+    // Render Store Sidebar
+    function renderStoreNav() {
+      storeNavList.innerHTML = '';
+      if (stores.length === 0) {
+        storeNavList.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1rem 0;">暫無店家</div>';
+        return;
+      }
+
+      stores.forEach(store => {
+        const item = document.createElement('div');
+        const isActive = serverActiveStore === store;
+        item.className = `store-nav-item ${activeStore === store ? 'active' : ''}`;
+        item.innerHTML = `
+          <span class="store-name">${isActive ? '✅ ' : ''}${escapeHtml(store)}</span>
+          <span class="delete-store-btn" style="color: var(--danger); font-size: 0.85rem;" title="刪除店家">🗑️</span>
+        `;
+
+        // Select Store
+        item.addEventListener('click', (e) => {
+          if (e.target.classList.contains('delete-store-btn')) {
+            // Delete Store Action
+            if (confirm(`確定要刪除店家「${store}」及其所有菜單品項嗎？`)) {
+              stores = stores.filter(s => s !== store);
+              menuState = menuState.filter(m => m.store !== store);
+              if (activeStore === store) {
+                activeStore = stores.length > 0 ? stores[0] : null;
+              }
+              renderStoreNav();
+              renderItemsEditor();
+            }
+          } else {
+            activeStore = store;
+            renderStoreNav();
+            renderItemsEditor();
+          }
+        });
+
+        storeNavList.appendChild(item);
+      });
+    }
+
+    // Render Items Editor List
+    function renderItemsEditor() {
+      itemsEditorContainer.innerHTML = '';
+      
+      if (!activeStore) {
+        activeStoreTitle.innerText = '請先新增或選擇店家';
+        btnAddItem.style.display = 'none';
+        document.getElementById('btn-set-active-store').style.display = 'none';
+        itemsEditorContainer.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem 0;">無選取店家</div>';
+        return;
+      }
+
+      activeStoreTitle.innerText = `正在編輯：${activeStore}`;
+      btnAddItem.style.display = 'block';
+      document.getElementById('btn-set-active-store').style.display = 'block';
+
+      const items = menuState.filter(m => m.store === activeStore);
+
+      if (items.length === 0) {
+        itemsEditorContainer.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 1.5rem 0;">此店家暫無品項，請點選右上角新增。</div>';
+        return;
+      }
+
+      items.forEach((item, index) => {
+        const row = document.createElement('div');
+        row.className = 'menu-item-row';
+        
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.value = item.item;
+        nameInput.placeholder = '品項名稱 (如: 排骨飯)';
+        nameInput.style.flex = '2';
+        
+        // Bind change event to update state
+        nameInput.addEventListener('input', (e) => {
+          item.item = e.target.value.trim();
+        });
+
+        const priceInput = document.createElement('input');
+        priceInput.type = 'number';
+        priceInput.value = item.price;
+        priceInput.placeholder = '價格';
+        priceInput.min = '0';
+        priceInput.style.flex = '1';
+        
+        priceInput.addEventListener('input', (e) => {
+          item.price = parseFloat(e.target.value) || 0;
+        });
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-secondary btn-sm';
+        deleteBtn.innerHTML = '🗑️';
+        deleteBtn.title = '刪除品項';
+        deleteBtn.addEventListener('click', () => {
+          menuState = menuState.filter(m => m !== item);
+          renderItemsEditor();
+        });
+
+        row.appendChild(nameInput);
+        row.appendChild(priceInput);
+        row.appendChild(deleteBtn);
+        itemsEditorContainer.appendChild(row);
+      });
+    }
+
+    // Add Item to active store
+    btnAddItem.addEventListener('click', () => {
+      if (!activeStore) return;
+      
+      menuState.push({
+        store: activeStore,
+        item: '',
+        price: 0
+      });
+      renderItemsEditor();
+      
+      const rows = itemsEditorContainer.querySelectorAll('.menu-item-row');
+      if (rows.length > 0) {
+        const lastRowInputs = rows[rows.length - 1].querySelectorAll('input');
+        if (lastRowInputs.length > 0) lastRowInputs[0].focus();
+      }
+    });
+
+    // Sync Menu (Submit POST updateMenu)
+    btnSyncMenu.addEventListener('click', async () => {
+      if (!apiUrl) {
+        alert('請先在上方設定並儲存 Google Sheets API 網址！');
+        return;
+      }
+
+      const validMenu = menuState.filter(m => m.store && m.item.trim() !== '');
+      
+      btnSyncMenu.disabled = true;
+      btnSyncMenu.innerHTML = '<span class="spinner"></span> 正在同步至 Google Sheet...';
+      showStatus(menuStatusMsg, '正在同步至 Google Sheet...', 'info');
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          mode: 'cors',
+          body: JSON.stringify({
+            action: 'updateMenu',
+            menu: validMenu
+          })
+        });
+
+        if (!response.ok) throw new Error('雲端連線失敗');
+        const res = await response.json();
+        
+        if (res.success) {
+          showStatus(menuStatusMsg, '🎉 菜單同步成功！已成功儲存至 Google Sheet。', 'success');
+          await fetchAdminData();
+        } else {
+          throw new Error(res.error || '不明錯誤');
+        }
+      } catch (err) {
+        console.error(err);
+        showStatus(menuStatusMsg, `同步菜單失敗: ${err.message}`, 'error');
+      } finally {
+        btnSyncMenu.disabled = false;
+        btnSyncMenu.innerHTML = '💾 同步菜單到 Google Sheet';
+      }
+    });
+
+    // Clear Orders
+    btnClearOrders.addEventListener('click', async () => {
+      if (!apiUrl) {
+        alert('請先在上方設定並儲存 Google Sheets API 網址！');
+        return;
+      }
+
+      if (!confirm('⚠️ 警告：這將會清空 Google Sheet 中所有的點餐紀錄！\n此操作無法復原，您確定要清空嗎？')) {
+        return;
+      }
+
+      btnClearOrders.disabled = true;
+      btnClearOrders.innerHTML = '<span class="spinner"></span> 正在清空訂單...';
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          mode: 'cors',
+          body: JSON.stringify({
+            action: 'clearOrders'
+          })
+        });
+
+        if (!response.ok) throw new Error('雲端連線失敗');
+        const res = await response.json();
+        
+        if (res.success) {
+          alert('所有訂單已成功清空！');
+        } else {
+          throw new Error(res.error || '不明錯誤');
+        }
+      } catch (err) {
+        console.error(err);
+        alert(`清空訂單失敗: ${err.message}`);
+      } finally {
+        btnClearOrders.disabled = false;
+        btnClearOrders.innerHTML = '🗑️ 清空 Google Sheet 所有訂單';
+      }
+    });
+
+    // Set active store listener
+    const btnSetActiveStore = document.getElementById('btn-set-active-store');
+    btnSetActiveStore.addEventListener('click', async () => {
+      if (!activeStore) return;
+
+      if (!apiUrl) {
+        serverActiveStore = activeStore;
+        updateActiveStoreBanner();
+        renderStoreNav();
+        showStatus(menuStatusMsg, `已設定 ${activeStore} 為本次點餐店家 (離線狀態，未同步至 Google Sheet)`, 'info');
+        return;
+      }
+
+      btnSetActiveStore.disabled = true;
+      btnSetActiveStore.innerHTML = '<span class="spinner"></span> 設定中...';
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          mode: 'cors',
+          body: JSON.stringify({
+            action: 'setActiveStore',
+            activeStore: activeStore
+          })
+        });
+
+        if (!response.ok) throw new Error('連線錯誤');
+        const res = await response.json();
+        if (res.success) {
+          serverActiveStore = activeStore;
+          updateActiveStoreBanner();
+          renderStoreNav();
+          showStatus(menuStatusMsg, `🎉 成功設定【${activeStore}】為本次點餐店家！已同步至雲端。`, 'success');
+        } else {
+          throw new Error(res.error || '不明錯誤');
+        }
+      } catch (err) {
+        showStatus(menuStatusMsg, `設定本次店家失敗: ${err.message}`, 'error');
+      } finally {
+        btnSetActiveStore.disabled = false;
+        btnSetActiveStore.innerHTML = '📢 設為本次點餐店家';
+      }
+    });
+
+    function updateActiveStoreBanner() {
+      const banner = document.getElementById('current-active-store-banner');
+      if (serverActiveStore) {
+        banner.innerText = `📢 本次指定點餐店家：【${serverActiveStore}】（使用者前台將會被鎖定在此店家）`;
+        banner.style.display = 'block';
+      } else {
+        banner.innerText = `⚠️ 尚未指定本次點餐店家！請選擇左側店家並點擊「設為本次點餐店家」。`;
+        banner.style.display = 'block';
+      }
+    }
+
+    // Helper functions
+    function showStatus(element, msg, type) {
+      element.innerText = msg;
+      element.className = `status-msg ${type}`;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>
