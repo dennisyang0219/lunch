@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>中午吃什麼？- 訂便當系統</title>
+  <title>訂便當系統</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -52,6 +52,10 @@
             <select id="store-select" required>
               <option value="" disabled selected>載入中...</option>
             </select>
+          </div>
+          
+          <div id="store-info-display" style="display: none; background: rgba(2, 132, 199, 0.04); border: 1px solid rgba(2, 132, 199, 0.15); border-radius: 8px; padding: 0.75rem 1rem; margin-top: -0.75rem; margin-bottom: 1.5rem; font-size: 0.85rem; line-height: 1.5; color: var(--text-secondary);">
+            <!-- Store info details populated dynamically -->
           </div>
 
           <div class="form-group">
@@ -126,6 +130,7 @@
     const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzHajWdfncHuR7LU2JsR1PpNTKyFKgv5CmeyGyAKPBuNTKI9QLYZyvJy1ci_sL2COgy/exec'; // 您可以在此填入預設的 API 網址，這樣其他人打開此檔案就免設定直接使用！
     let apiUrl = localStorage.getItem(API_KEY_STORAGE) || DEFAULT_API_URL;
     let menuData = [];
+    let storesData = []; // store details (address, phone, remarks)
     let ordersData = [];
     let deadlineTime = null;
     let timerInterval = null;
@@ -232,6 +237,7 @@
         
         const data = await response.json();
         menuData = data.menu || [];
+        storesData = data.stores || [];
         ordersData = data.orders || [];
         activeStoreConfig = data.activeStore || null;
         
@@ -336,6 +342,7 @@
         storeSelect.innerHTML = `<option value="${activeStoreConfig}" selected>${activeStoreConfig}</option>`;
         storeSelect.disabled = true;
         renderMenuItems(activeStoreConfig);
+        displayStoreDetails(activeStoreConfig);
         
         // Enable controls if within deadline
         if (!deadlineTime || (new Date() <= deadlineTime)) {
@@ -346,6 +353,7 @@
         storeLabel.innerHTML = '🏪 選擇便當店 <span style="font-size: 0.75rem; color: var(--warning); background: rgba(245,158,11,0.15); padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.25rem;">等待指定</span>';
         storeSelect.innerHTML = '<option value="" disabled selected>⚠️ 請等待管理者指定本次點餐店家</option>';
         storeSelect.disabled = true;
+        document.getElementById('store-info-display').style.display = 'none';
         menuItemsContainer.innerHTML = '<div class="empty-menu-placeholder">請等待管理員設定本次點餐店家</div>';
         disableOrdering(true);
       }
@@ -531,6 +539,34 @@
         `;
         ordersListBody.appendChild(tr);
       });
+    }
+
+    function displayStoreDetails(storeName) {
+      const displayEl = document.getElementById('store-info-display');
+      const storeInfo = storesData.find(s => s.store === storeName);
+      
+      if (!storeInfo) {
+        displayEl.style.display = 'none';
+        return;
+      }
+      
+      let html = '';
+      if (storeInfo.address && storeInfo.address.trim()) {
+        html += `<div style="margin-bottom: 0.25rem;"><strong>📍 店家地址：</strong>${escapeHtml(storeInfo.address)}</div>`;
+      }
+      if (storeInfo.phone && storeInfo.phone.trim()) {
+        html += `<div style="margin-bottom: 0.25rem;"><strong>📞 店家電話：</strong>${escapeHtml(storeInfo.phone)}</div>`;
+      }
+      if (storeInfo.remarks && storeInfo.remarks.trim()) {
+        html += `<div><strong>📝 備註事項：</strong>${escapeHtml(storeInfo.remarks)}</div>`;
+      }
+      
+      if (html) {
+        displayEl.innerHTML = html;
+        displayEl.style.display = 'block';
+      } else {
+        displayEl.style.display = 'none';
+      }
     }
 
     // Helper functions
