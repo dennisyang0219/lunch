@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>中午吃什麼？- 訂便當系統</title>
+  <title>訂便當系統</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -501,14 +501,9 @@
           const box = document.createElement('div');
           box.className = 'stat-box';
           
-          // Limit people names display length
-          const uniquePeople = [...new Set(item.people)];
-          const peopleStr = uniquePeople.join(', ');
-          
           box.innerHTML = `
             <div class="stat-label" title="${item.item}">${item.item}</div>
             <div class="stat-num">${item.count} <span style="font-size: 1rem; color: var(--text-secondary)">份</span></div>
-            <div class="stat-details" title="${peopleStr}">(${item.store}) ${peopleStr}</div>
           `;
           statsSummary.appendChild(box);
         });
