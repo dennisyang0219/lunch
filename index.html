@@ -124,6 +124,17 @@
     </div>
   </div>
 
+  <!-- Success Order Modal -->
+  <div class="modal-overlay" id="order-success-modal">
+    <div class="modal" style="text-align: center;">
+      <h3 class="modal-header" style="font-size: 1.5rem; margin-bottom: 0.75rem;">🎉 訂購成功</h3>
+      <p style="font-size: 1.05rem; color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.5;">您已經訂餐，請盡速繳費，謝謝</p>
+      <div class="modal-actions" style="justify-content: center; margin-top: 0;">
+        <button class="btn" id="btn-close-success-modal" style="width: 100%; max-width: 120px;">確定</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Config
     const API_KEY_STORAGE = 'lunchbox_api_url';
@@ -158,6 +169,8 @@
     const timerContainer = document.getElementById('timer-container');
     const countdownEl = document.getElementById('countdown');
     const timerStatusText = document.getElementById('timer-status-text');
+    const orderSuccessModal = document.getElementById('order-success-modal');
+    const btnCloseSuccessModal = document.getElementById('btn-close-success-modal');
 
     // Page Init
     window.addEventListener('DOMContentLoaded', () => {
@@ -210,6 +223,10 @@
       passwordModal.classList.remove('active');
       adminPasswordInput.value = '';
       passwordError.style.display = 'none';
+    });
+
+    btnCloseSuccessModal.addEventListener('click', () => {
+      orderSuccessModal.classList.remove('active');
     });
 
     btnSubmitPassword.addEventListener('click', verifyPassword);
@@ -459,6 +476,8 @@
           });
           // Refresh statistics
           await fetchData();
+          // Pop success dialog
+          orderSuccessModal.classList.add('active');
         } else {
           throw new Error(resData.error || '不明錯誤');
         }
