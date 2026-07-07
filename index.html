@@ -329,9 +329,14 @@
           btnSubmit.innerHTML = '❌ 無法點餐';
         }
         
-        // Disable checkboxes
+        // Disable checkboxes & qty buttons
         document.querySelectorAll('input[name="lunchbox-item"]').forEach(cb => {
           cb.disabled = true;
+        });
+        document.querySelectorAll('.qty-btn').forEach(btn => {
+          btn.disabled = true;
+          btn.style.opacity = 0.5;
+          btn.style.pointerEvents = 'none';
         });
       } else {
         userNameInput.disabled = false;
@@ -339,6 +344,16 @@
         btnSubmit.disabled = false;
         btnSubmit.classList.remove('btn-disabled');
         btnSubmit.innerHTML = '🚀 送出訂單';
+        
+        // Enable checkboxes & qty buttons
+        document.querySelectorAll('input[name="lunchbox-item"]').forEach(cb => {
+          cb.disabled = false;
+        });
+        document.querySelectorAll('.qty-btn').forEach(btn => {
+          btn.disabled = false;
+          btn.style.opacity = 1;
+          btn.style.pointerEvents = 'auto';
+        });
       }
     }
 
@@ -391,21 +406,60 @@
       }
 
       items.forEach(item => {
-        const label = document.createElement('label');
-        label.className = 'checkbox-container';
-        label.innerHTML = `
-          ${item.item}
-          <span class="item-price">$${item.price}</span>
-          <input type="checkbox" name="lunchbox-item" value="${item.item}" data-price="${item.price}">
-          <span class="checkmark"></span>
+        const row = document.createElement('div');
+        row.className = 'menu-item-selection-row';
+        row.innerHTML = `
+          <label class="checkbox-container">
+            <span class="item-name">${escapeHtml(item.item)}</span>
+            <span class="item-price">$${item.price}</span>
+            <input type="checkbox" name="lunchbox-item" value="${escapeHtml(item.item)}" data-price="${item.price}">
+            <span class="checkmark"></span>
+          </label>
+          <div class="quantity-selector" style="display: none;">
+            <button type="button" class="qty-btn qty-minus">-</button>
+            <input type="number" class="qty-input" value="1" min="1" readonly>
+            <button type="button" class="qty-btn qty-plus">+</button>
+          </div>
         `;
-        menuItemsContainer.appendChild(label);
+        menuItemsContainer.appendChild(row);
+
+        const checkbox = row.querySelector('input[type="checkbox"]');
+        const qtySelector = row.querySelector('.quantity-selector');
+        const qtyInput = row.querySelector('.qty-input');
+        const btnMinus = row.querySelector('.qty-minus');
+        const btnPlus = row.querySelector('.qty-plus');
+
+        checkbox.addEventListener('change', () => {
+          if (checkbox.checked) {
+            qtySelector.style.display = 'flex';
+          } else {
+            qtySelector.style.display = 'none';
+            qtyInput.value = 1;
+          }
+        });
+
+        btnMinus.addEventListener('click', () => {
+          let val = parseInt(qtyInput.value) || 1;
+          if (val > 1) {
+            qtyInput.value = val - 1;
+          }
+        });
+
+        btnPlus.addEventListener('click', () => {
+          let val = parseInt(qtyInput.value) || 1;
+          qtyInput.value = val + 1;
+        });
       });
 
       // If deadline already passed, make sure newly rendered checkboxes are disabled
       if (deadlineTime && (new Date() > deadlineTime)) {
         document.querySelectorAll('input[name="lunchbox-item"]').forEach(cb => {
           cb.disabled = true;
+        });
+        document.querySelectorAll('.qty-btn').forEach(btn => {
+          btn.disabled = true;
+          btn.style.opacity = 0.5;
+          btn.style.pointerEvents = 'none';
         });
       }
     }
@@ -427,11 +481,22 @@
       }
 
       const checkedItems = [];
-      document.querySelectorAll('input[name="lunchbox-item"]:checked').forEach(cb => {
-        checkedItems.push({
-          item: cb.value,
-          price: parseFloat(cb.getAttribute('data-price')) || 0
-        });
+      document.querySelectorAll('.menu-item-selection-row').forEach(row => {
+        const cb = row.querySelector('input[name="lunchbox-item"]');
+        if (cb && cb.checked) {
+          const qtyInput = row.querySelector('.qty-input');
+          const qty = qtyInput ? (parseInt(qtyInput.value) || 1) : 1;
+          const price = parseFloat(cb.getAttribute('data-price')) || 0;
+          
+          // Unpack items to write as multiple rows for maximum compatibility with both old and new backend script versions
+          for (let i = 0; i < qty; i++) {
+            checkedItems.push({
+              item: cb.value,
+              price: price,
+              quantity: 1
+            });
+          }
+        }
       });
 
       if (checkedItems.length === 0) {
@@ -474,6 +539,12 @@
           document.querySelectorAll('input[name="lunchbox-item"]:checked').forEach(cb => {
             cb.checked = false;
           });
+          document.querySelectorAll('.quantity-selector').forEach(sel => {
+            sel.style.display = 'none';
+          });
+          document.querySelectorAll('.qty-input').forEach(inp => {
+            inp.value = 1;
+          });
           // Refresh statistics
           await fetchData();
           // Pop success dialog
@@ -508,7 +579,8 @@
             count: 0
           };
         }
-        itemCounts[key].count += 1;
+        const qty = ord.quantity ? parseInt(ord.quantity) || 1 : 1;
+        itemCounts[key].count += qty;
       });
 
       // Populate Stats Cards Grid
@@ -537,8 +609,34 @@
         return;
       }
 
+      // Group/consolidate identical items in the same order (same name, same item, same timestamp or within 5s)
+      const consolidatedOrders = [];
+      filteredOrders.forEach(ord => {
+        const qty = ord.quantity ? parseInt(ord.quantity) || 1 : 1;
+        const price = parseFloat(ord.price) || 0;
+
+        const match = consolidatedOrders.find(c => 
+          c.name === ord.name &&
+          c.store === ord.store &&
+          c.item === ord.item &&
+          (new Date(c.timestamp).getTime() - new Date(ord.timestamp).getTime() === 0 ||
+           Math.abs(new Date(c.timestamp).getTime() - new Date(ord.timestamp).getTime()) < 5000)
+        );
+
+        if (match) {
+          match.quantity += qty;
+          match.totalPrice += (price * qty);
+        } else {
+          consolidatedOrders.push({
+            ...ord,
+            quantity: qty,
+            totalPrice: price * qty
+          });
+        }
+      });
+
       // Show newest orders on top
-      const sortedOrders = [...filteredOrders].reverse();
+      const sortedOrders = [...consolidatedOrders].reverse();
       
       sortedOrders.forEach(ord => {
         const tr = document.createElement('tr');
@@ -549,11 +647,16 @@
           dateStr = `${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
         }
 
+        let displayItem = escapeHtml(ord.item);
+        if (ord.quantity > 1) {
+          displayItem += ` <span style="background: rgba(2, 132, 199, 0.08); color: #0284c7; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; margin-left: 0.25rem;">x${ord.quantity}</span>`;
+        }
+
         tr.innerHTML = `
           <td style="font-weight: 500;">${escapeHtml(ord.name)}</td>
           <td><span style="background: rgba(2, 132, 199, 0.05); color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">${escapeHtml(ord.store)}</span></td>
-          <td>${escapeHtml(ord.item)}</td>
-          <td style="color: var(--text-secondary); font-weight: 500;">$${ord.price}</td>
+          <td>${displayItem}</td>
+          <td style="color: var(--text-secondary); font-weight: 500;">$${ord.totalPrice}</td>
           <td style="font-size: 0.8rem; color: var(--text-muted);">${dateStr}</td>
         `;
         ordersListBody.appendChild(tr);
