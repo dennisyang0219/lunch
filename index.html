@@ -234,15 +234,42 @@
       if (e.key === 'Enter') verifyPassword();
     });
 
-    function verifyPassword() {
+    async function verifyPassword() {
       const password = adminPasswordInput.value.trim();
-      if (password === 'water603') {
-        sessionStorage.setItem('admin_authenticated', 'true');
-        window.location.href = 'admin.html';
-      } else {
+      if (!password) return;
+      
+      btnSubmitPassword.disabled = true;
+      btnSubmitPassword.innerHTML = '<span class="spinner"></span> 驗證中...';
+      passwordError.style.display = 'none';
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          mode: 'cors',
+          body: JSON.stringify({
+            action: 'verifyPassword',
+            password: password
+          })
+        });
+
+        if (!response.ok) throw new Error('API 連線錯誤');
+        const resData = await response.json();
+        
+        if (resData.success && resData.authenticated) {
+          sessionStorage.setItem('admin_password', password);
+          window.location.href = 'admin.html';
+        } else {
+          throw new Error(resData.error || '密碼錯誤');
+        }
+      } catch (err) {
+        console.error(err);
+        passwordError.innerText = err.message.includes('密碼錯誤') ? '密碼錯誤，請再試一次' : '驗證失敗，請確認 API 設定或網路。';
         passwordError.style.display = 'block';
         adminPasswordInput.value = '';
         adminPasswordInput.focus();
+      } finally {
+        btnSubmitPassword.disabled = false;
+        btnSubmitPassword.innerHTML = '登入';
       }
     }
 
