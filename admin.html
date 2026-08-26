@@ -190,19 +190,41 @@
           return;
         }
 
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          mode: 'cors',
-          body: JSON.stringify({
-            action: 'verifyPassword',
-            password: password
-          })
-        });
+        let isOldScript = false;
+        let resData = null;
+        try {
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            mode: 'cors',
+            body: JSON.stringify({
+              action: 'verifyPassword',
+              password: password
+            })
+          });
+          
+          if (response.ok) {
+            resData = await response.json();
+          } else {
+            isOldScript = true;
+          }
+        } catch (e) {
+          // 網路錯誤、CORS 被阻擋（如舊版 script 轉址）代表可能為舊版後台
+          isOldScript = true;
+        }
+
+        if (isOldScript) {
+          // 降級處理：若是舊版 Apps Script (不支援 verifyPassword)，則比對混淆過的預設密碼
+          if (btoa(password) === 'd2F0ZXI2MDM=') {
+            sessionStorage.setItem(PASSWORD_KEY, password);
+            const container = document.getElementById('admin-container');
+            if (container) container.style.display = 'block';
+            return;
+          } else {
+            throw new Error('密碼錯誤');
+          }
+        }
         
-        if (!response.ok) throw new Error();
-        const resData = await response.json();
-        
-        if (resData.success && resData.authenticated) {
+        if (resData && resData.success && resData.authenticated) {
           sessionStorage.setItem(PASSWORD_KEY, password);
           const container = document.getElementById('admin-container');
           if (container) container.style.display = 'block';
