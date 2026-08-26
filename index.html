@@ -243,7 +243,7 @@
       passwordError.style.display = 'none';
 
       try {
-        let isOldScript = false;
+        let isOldScriptOrOffline = false;
         let resData = null;
         try {
           const response = await fetch(apiUrl, {
@@ -257,14 +257,19 @@
 
           if (response.ok) {
             resData = await response.json();
+            if (resData && !resData.success && resData.error && resData.error.includes('密碼錯誤')) {
+              isOldScriptOrOffline = false;
+            } else if (resData && !resData.success) {
+              isOldScriptOrOffline = true;
+            }
           } else {
-            isOldScript = true;
+            isOldScriptOrOffline = true;
           }
         } catch (e) {
-          isOldScript = true;
+          isOldScriptOrOffline = true;
         }
 
-        if (isOldScript) {
+        if (isOldScriptOrOffline) {
           // 降級處理：若是舊版 Apps Script (不支援 verifyPassword)，則比對混淆過的預設密碼
           if (btoa(password) === 'd2F0ZXI2MDM=') {
             sessionStorage.setItem('admin_password', password);
