@@ -190,7 +190,7 @@
           return;
         }
 
-        let isOldScript = false;
+        let isOldScriptOrOffline = false;
         let resData = null;
         try {
           const response = await fetch(apiUrl, {
@@ -204,15 +204,20 @@
           
           if (response.ok) {
             resData = await response.json();
+            if (resData && !resData.success && resData.error && resData.error.includes('密碼錯誤')) {
+              isOldScriptOrOffline = false;
+            } else if (resData && !resData.success) {
+              isOldScriptOrOffline = true;
+            }
           } else {
-            isOldScript = true;
+            isOldScriptOrOffline = true;
           }
         } catch (e) {
           // 網路錯誤、CORS 被阻擋（如舊版 script 轉址）代表可能為舊版後台
-          isOldScript = true;
+          isOldScriptOrOffline = true;
         }
 
-        if (isOldScript) {
+        if (isOldScriptOrOffline) {
           // 降級處理：若是舊版 Apps Script (不支援 verifyPassword)，則比對混淆過的預設密碼
           if (btoa(password) === 'd2F0ZXI2MDM=') {
             sessionStorage.setItem(PASSWORD_KEY, password);
