@@ -20,7 +20,7 @@
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="container" id="admin-container" style="display: none;">
     <!-- Header -->
     <header>
       <div class="logo-group">
@@ -162,21 +162,62 @@
 
   <script>
     // 驗證管理者認證狀態，防範使用者直接輸入或點擊 admin.html 進入後台
-    const AUTH_KEY = 'admin_authenticated';
-    if (sessionStorage.getItem(AUTH_KEY) !== 'true') {
-      const pw = prompt('🔒 請輸入管理密碼以進入後台：');
-      if (pw === 'water603') {
-        sessionStorage.setItem(AUTH_KEY, 'true');
-      } else {
-        alert('密碼錯誤！將返回點餐頁面。');
-        window.location.href = 'index.html';
-      }
-    }
-
+    const PASSWORD_KEY = 'admin_password';
+    
     // Config & States
     const API_KEY_STORAGE = 'lunchbox_api_url';
     const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzHajWdfncHuR7LU2JsR1PpNTKyFKgv5CmeyGyAKPBuNTKI9QLYZyvJy1ci_sL2COgy/exec'; // 您可以在此填入預設的 API 網址，這樣其他人打開此檔案就免設定直接使用！
     let apiUrl = localStorage.getItem(API_KEY_STORAGE) || DEFAULT_API_URL;
+
+    async function verifyAdminAuth() {
+      let password = sessionStorage.getItem(PASSWORD_KEY);
+      
+      // 若沒有暫存密碼，則提示輸入
+      if (!password) {
+        password = prompt('🔒 請輸入管理密碼以進入後台：');
+        if (!password) {
+          alert('未輸入密碼！將返回點餐頁面。');
+          window.location.href = 'index.html';
+          return;
+        }
+      }
+      
+      try {
+        if (!apiUrl) {
+          // 離線預覽狀態
+          const container = document.getElementById('admin-container');
+          if (container) container.style.display = 'block';
+          return;
+        }
+
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          mode: 'cors',
+          body: JSON.stringify({
+            action: 'verifyPassword',
+            password: password
+          })
+        });
+        
+        if (!response.ok) throw new Error();
+        const resData = await response.json();
+        
+        if (resData.success && resData.authenticated) {
+          sessionStorage.setItem(PASSWORD_KEY, password);
+          const container = document.getElementById('admin-container');
+          if (container) container.style.display = 'block';
+        } else {
+          throw new Error('密碼錯誤');
+        }
+      } catch (err) {
+        alert(err.message === '密碼錯誤' ? '密碼錯誤！將返回點餐頁面。' : '驗證失敗，請確認 API 連線或密碼。將返回點餐頁面。');
+        sessionStorage.removeItem(PASSWORD_KEY);
+        window.location.href = 'index.html';
+      }
+    }
+    
+    // 立即進行驗證
+    verifyAdminAuth();
     
     let storesState = []; // unique stores info [{store, address, phone, remarks}]
     let menuState = []; // all menu items [{store, item, price}]
@@ -389,7 +430,8 @@
           mode: 'cors',
           body: JSON.stringify({
             action: 'setDeadline',
-            deadline: deadlineVal
+            deadline: deadlineVal,
+            password: sessionStorage.getItem('admin_password')
           })
         });
         
@@ -427,7 +469,8 @@
           mode: 'cors',
           body: JSON.stringify({
             action: 'setDeadline',
-            deadline: ''
+            deadline: '',
+            password: sessionStorage.getItem('admin_password')
           })
         });
         
@@ -689,7 +732,8 @@
           body: JSON.stringify({
             action: 'updateMenu',
             menu: validMenu,
-            stores: storesState
+            stores: storesState,
+            password: sessionStorage.getItem('admin_password')
           })
         });
 
@@ -730,7 +774,8 @@
           method: 'POST',
           mode: 'cors',
           body: JSON.stringify({
-            action: 'clearOrders'
+            action: 'clearOrders',
+            password: sessionStorage.getItem('admin_password')
           })
         });
 
@@ -773,7 +818,8 @@
           mode: 'cors',
           body: JSON.stringify({
             action: 'setActiveStore',
-            activeStore: activeStore
+            activeStore: activeStore,
+            password: sessionStorage.getItem('admin_password')
           })
         });
 
