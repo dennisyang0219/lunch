@@ -243,23 +243,43 @@
       passwordError.style.display = 'none';
 
       try {
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          mode: 'cors',
-          body: JSON.stringify({
-            action: 'verifyPassword',
-            password: password
-          })
-        });
+        let isOldScript = false;
+        let resData = null;
+        try {
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            mode: 'cors',
+            body: JSON.stringify({
+              action: 'verifyPassword',
+              password: password
+            })
+          });
 
-        if (!response.ok) throw new Error('API 連線錯誤');
-        const resData = await response.json();
-        
-        if (resData.success && resData.authenticated) {
+          if (response.ok) {
+            resData = await response.json();
+          } else {
+            isOldScript = true;
+          }
+        } catch (e) {
+          isOldScript = true;
+        }
+
+        if (isOldScript) {
+          // 降級處理：若是舊版 Apps Script (不支援 verifyPassword)，則比對混淆過的預設密碼
+          if (btoa(password) === 'd2F0ZXI2MDM=') {
+            sessionStorage.setItem('admin_password', password);
+            window.location.href = 'admin.html';
+            return;
+          } else {
+            throw new Error('密碼錯誤');
+          }
+        }
+
+        if (resData && resData.success && resData.authenticated) {
           sessionStorage.setItem('admin_password', password);
           window.location.href = 'admin.html';
         } else {
-          throw new Error(resData.error || '密碼錯誤');
+          throw new Error(resData && resData.error ? resData.error : '密碼錯誤');
         }
       } catch (err) {
         console.error(err);
