@@ -32,7 +32,7 @@
 
 1. 在瀏覽器中開啟 [index.html](file:///c:/order/index.html)。
 2. 點擊右上角 **「管理者後台」** 按鈕。
-3. 系統將提示輸入密碼，請輸入：`water603`。
+3. 系統將提示輸入密碼，請輸入：``。
 4. 跳轉至 `admin.html` 後，在 **Google Sheets API 設定** 欄位中，貼上剛才複製的「網頁應用程式 URL」。
 5. 點擊 **「儲存」** 按鈕。系統將自動與您的 Google Sheet 進行連線，並自動在試算表中建立 `Config`、`Menu`、`Orders` 三個工作表。
 
