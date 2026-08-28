@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>中午吃什麼？- 訂便當系統</title>
+  <title>訂便當系統</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -42,6 +42,26 @@
         <div id="submit-status" class="status-msg"></div>
 
         <form id="order-form">
+          <div class="form-group">
+            <label for="user-department">🏢 您的單位</label>
+            <select id="user-department" required>
+              <option value="" disabled selected>請選擇單位</option>
+              <option value="資訊處">資訊處</option>
+              <option value="工安環保處">工安環保處</option>
+              <option value="水質處">水質處</option>
+              <option value="供水處">供水處</option>
+              <option value="漏水防治處">漏水防治處</option>
+              <option value="採購供應處">採購供應處</option>
+              <option value="人力資源處">人力資源處</option>
+              <option value="財務處">財務處</option>
+              <option value="會計處">會計處</option>
+              <option value="檢核室">檢核室</option>
+              <option value="資拓">資拓</option>
+              <option value="易捷">易捷</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+
           <div class="form-group">
             <label for="user-name">👤 您的姓名</label>
             <input type="text" id="user-name" required placeholder="請輸入姓名">
@@ -88,6 +108,7 @@
           <table>
             <thead>
               <tr>
+                <th>單位</th>
                 <th>姓名</th>
                 <th>店家</th>
                 <th>點餐品項</th>
@@ -97,7 +118,7 @@
             </thead>
             <tbody id="orders-list-body">
               <tr>
-                <td colspan="5" style="text-align: center; color: var(--text-muted);">載入訂單中...</td>
+                <td colspan="6" style="text-align: center; color: var(--text-muted);">載入訂單中...</td>
               </tr>
             </tbody>
           </table>
@@ -156,6 +177,7 @@
     const passwordError = document.getElementById('password-error');
     
     const apiWarning = document.getElementById('api-warning');
+    const userDepartmentSelect = document.getElementById('user-department');
     const userNameInput = document.getElementById('user-name');
     const storeSelect = document.getElementById('store-select');
     const menuItemsContainer = document.getElementById('menu-items-container');
@@ -186,14 +208,15 @@
         window.history.replaceState({}, document.title, cleanUrl);
       }
 
-      // Ensure name input is empty on load
+      // Ensure inputs are empty on load
+      userDepartmentSelect.value = '';
       userNameInput.value = '';
-
+      
       // Check API URL
       if (!apiUrl) {
         apiWarning.style.display = 'block';
         storeSelect.innerHTML = '<option value="" disabled selected>請先設定 API URL</option>';
-        ordersListBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">尚未設定 API</td></tr>';
+        ordersListBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">尚未設定 API</td></tr>';
         return;
       }
 
@@ -368,6 +391,7 @@
 
     function disableOrdering(disabled) {
       if (disabled) {
+        userDepartmentSelect.disabled = true;
         userNameInput.disabled = true;
         storeSelect.disabled = true;
         btnSubmit.disabled = true;
@@ -391,6 +415,7 @@
           btn.style.pointerEvents = 'none';
         });
       } else {
+        userDepartmentSelect.disabled = false;
         userNameInput.disabled = false;
         storeSelect.disabled = !!activeStoreConfig; // Keep disabled if locked by admin
         btnSubmit.disabled = false;
@@ -520,9 +545,14 @@
     orderForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       
+      const department = userDepartmentSelect.value;
       const name = userNameInput.value.trim();
       const store = storeSelect.value;
       
+      if (!department) {
+        showStatus('請選擇您的單位', 'error');
+        return;
+      }
       if (!name) {
         showStatus('請輸入您的姓名', 'error');
         return;
@@ -571,6 +601,7 @@
       try {
         const payload = {
           action: 'submitOrder',
+          department: department,
           name: name,
           store: store,
           items: checkedItems
@@ -588,6 +619,8 @@
         if (resData.success) {
           showStatus('🎉 訂單送出成功！已寫入試算表。', 'success');
           // Clear selections
+          userDepartmentSelect.value = '';
+          userNameInput.value = '';
           document.querySelectorAll('input[name="lunchbox-item"]:checked').forEach(cb => {
             cb.checked = false;
           });
@@ -657,7 +690,7 @@
       // 2. Populate detailed list table
       ordersListBody.innerHTML = '';
       if (filteredOrders.length === 0) {
-        ordersListBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">目前無此店家的點餐資料</td></tr>';
+        ordersListBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">目前無此店家的點餐資料</td></tr>';
         return;
       }
 
@@ -668,6 +701,7 @@
         const price = parseFloat(ord.price) || 0;
 
         const match = consolidatedOrders.find(c => 
+          c.department === ord.department &&
           c.name === ord.name &&
           c.store === ord.store &&
           c.item === ord.item &&
@@ -705,6 +739,7 @@
         }
 
         tr.innerHTML = `
+          <td><span style="background: rgba(14, 165, 233, 0.05); color: #0284c7; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">${escapeHtml(ord.department || '無')}</span></td>
           <td style="font-weight: 500;">${escapeHtml(ord.name)}</td>
           <td><span style="background: rgba(2, 132, 199, 0.05); color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">${escapeHtml(ord.store)}</span></td>
           <td>${displayItem}</td>
