@@ -110,6 +110,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
           <p style="font-size: 0.9rem; color: var(--text-secondary);">大家點了些什麼？看這裡跟著點就對了！</p>
           <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary btn-sm" id="btn-export-csv">📥 匯出 CSV</button>
             <button class="btn btn-secondary btn-sm" id="btn-open-copy-modal">📋 複製訂餐統計</button>
             <button class="btn btn-secondary btn-sm" id="btn-refresh-stats">🔄 重新整理</button>
           </div>
@@ -215,8 +216,8 @@
   <script>
     // Config
     const API_KEY_STORAGE = 'lunchbox_api_url';
-    const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwlFgxgl3qGat5EyaE5cZLK-h8Csz-PTzpw1GTgrFNafcP_GH17YFFVZKl1nk6TrDU1BQ/exec'; // 您可以在此填入預設的 API 網址，這樣其他人打開此檔案就免設定直接使用！
-    let apiUrl = localStorage.getItem(API_KEY_STORAGE) || DEFAULT_API_URL;
+    const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwlFgxgl3qGat5EyaE5cZLK-h8Csz-PTzpw1GTgrFNafcP_GH17YFFVZKl1nk6TrDU1BQ/exec'; // 填入固定 API 網址即可免設定直接使用！
+    let apiUrl = DEFAULT_API_URL.trim() || localStorage.getItem(API_KEY_STORAGE) || '';
     let menuData = [];
     let storesData = []; // store details (address, phone, remarks)
     let ordersData = [];
@@ -524,6 +525,58 @@
       }, 2500);
     }
 
+    // CSV Export Utility Function
+    function exportToCSV(filename, rows) {
+      const processRow = function (row) {
+        let finalVal = '';
+        for (let j = 0; j < row.length; j++) {
+          let innerValue = row[j] === null || row[j] === undefined ? '' : row[j].toString();
+          let result = innerValue.replace(/"/g, '""');
+          if (result.search(/("|,|\n)/g) >= 0)
+            result = '"' + result + '"';
+          if (j > 0)
+            finalVal += ',';
+          finalVal += result;
+        }
+        return finalVal + '\n';
+      };
+
+      let csvContent = '\uFEFF'; // UTF-8 BOM for Excel Chinese compatibility
+      for (let i = 0; i < rows.length; i++) {
+        csvContent += processRow(rows[i]);
+      }
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    }
+
+    // Export CSV Listener in Index
+    document.getElementById('btn-export-csv').addEventListener('click', () => {
+      const filteredOrders = ordersData.filter(ord => ord.store === activeStoreConfig);
+      if (filteredOrders.length === 0) {
+        alert('目前尚無點餐資料可匯出！');
+        return;
+      }
+
+      const rows = [["點餐時間", "單位", "姓名", "店家", "品項", "價格"]];
+      filteredOrders.forEach(ord => {
+        let dStr = ord.timestamp ? new Date(ord.timestamp).toLocaleString('zh-TW') : '';
+        rows.push([dStr, ord.department || '', ord.name, ord.store, ord.item, ord.price]);
+      });
+
+      const todayDate = new Date().toISOString().slice(0, 10);
+      exportToCSV(`便當點餐明細_${activeStoreConfig || '今日'}_${todayDate}.csv`, rows);
+    });
+
     // Password Modal Logic
     btnGoAdmin.addEventListener('click', () => {
       passwordModal.classList.add('active');
@@ -610,10 +663,10 @@
     }
 
     // Fetch Menu & Orders & Deadline
-    async function fetchData() {
+    async function fetchData(retry = 0) {
       try {
         const response = await fetch(apiUrl);
-        if (!response.ok) throw new Error('API 回應錯誤');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const data = await response.json();
         menuData = data.menu || [];
@@ -634,8 +687,13 @@
         renderStoreSelect();
         renderStats();
       } catch (err) {
-        console.error(err);
-        showStatus('載入資料失敗，請檢查 API URL 是否正確。', 'error');
+        console.error('API 讀取錯誤:', err);
+        if (retry < 1) {
+          // 自動重試 1 次 (因應 Google Apps Script 冷啟動或連線瞬斷)
+          setTimeout(() => fetchData(retry + 1), 1200);
+        } else {
+          showStatus('連線至 Google Sheets 失敗。若持續連線失敗，請檢查 Apps Script 是否已部署且權限為「所有人」。', 'error');
+        }
       }
     }
 
