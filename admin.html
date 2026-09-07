@@ -146,6 +146,22 @@
         </div>
       </section>
 
+      <!-- Report & CSV Export Card -->
+      <section class="card">
+        <h2 class="card-title"><span>📊</span> 報表與資料匯出</h2>
+        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
+          可一鍵匯出當前點餐明細或歷史統計紀錄為 Excel / CSV 檔案（包含 UTF-8 BOM 避免 Excel 開啟亂碼）。
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.75rem;">
+          <button class="btn btn-secondary" id="btn-export-today-csv">
+            📥 匯出今日點餐明細 (CSV)
+          </button>
+          <button class="btn btn-secondary" id="btn-export-history-csv">
+            📜 匯出歷史統計紀錄 (CSV)
+          </button>
+        </div>
+      </section>
+
       <!-- Danger Zone / Data Management -->
       <section class="card" style="border-color: rgba(239, 68, 68, 0.2);">
         <h2 class="card-title" style="color: var(--danger);">⚠️ 危險區域</h2>
@@ -166,8 +182,8 @@
     
     // Config & States
     const API_KEY_STORAGE = 'lunchbox_api_url';
-    const DEFAULT_API_URL = https://script.google.com/macros/s/AKfycbwlFgxgl3qGat5EyaE5cZLK-h8Csz-PTzpw1GTgrFNafcP_GH17YFFVZKl1nk6TrDU1BQ/exec'; // 您可以在此填入預設的 API 網址，這樣其他人打開此檔案就免設定直接使用！
-    let apiUrl = localStorage.getItem(API_KEY_STORAGE) || DEFAULT_API_URL;
+    const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwlFgxgl3qGat5EyaE5cZLK-h8Csz-PTzpw1GTgrFNafcP_GH17YFFVZKl1nk6TrDU1BQ/exec'; // 填入固定 API 網址即可免設定直接使用！
+    let apiUrl = DEFAULT_API_URL.trim() || localStorage.getItem(API_KEY_STORAGE) || '';
 
     async function verifyAdminAuth() {
       let password = sessionStorage.getItem(PASSWORD_KEY);
@@ -583,10 +599,15 @@
         } else {
           let maxDate = null;
           matches.forEach(m => {
-            const d = new Date(m.date);
-            d.setHours(0,0,0,0);
-            if (!maxDate || d > maxDate) {
-              maxDate = d;
+            const rawDate = m.date || m.timestamp;
+            if (rawDate) {
+              const d = new Date(rawDate);
+              if (!isNaN(d.getTime())) {
+                d.setHours(0,0,0,0);
+                if (!maxDate || d > maxDate) {
+                  maxDate = d;
+                }
+              }
             }
           });
           
@@ -912,6 +933,99 @@
       if (activeStore) {
         const storeInfo = storesState.find(s => s.store === activeStore);
         if (storeInfo) storeInfo.remarks = e.target.value;
+      }
+    });
+
+    // CSV Export Utility Function
+    function exportToCSV(filename, rows) {
+      const processRow = function (row) {
+        let finalVal = '';
+        for (let j = 0; j < row.length; j++) {
+          let innerValue = row[j] === null || row[j] === undefined ? '' : row[j].toString();
+          let result = innerValue.replace(/"/g, '""');
+          if (result.search(/("|,|\n)/g) >= 0)
+            result = '"' + result + '"';
+          if (j > 0)
+            finalVal += ',';
+          finalVal += result;
+        }
+        return finalVal + '\n';
+      };
+
+      let csvContent = '\uFEFF'; // UTF-8 BOM for Excel Chinese compatibility
+      for (let i = 0; i < rows.length; i++) {
+        csvContent += processRow(rows[i]);
+      }
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    }
+
+    // Export Today's Orders CSV
+    document.getElementById('btn-export-today-csv').addEventListener('click', async () => {
+      if (!apiUrl) {
+        alert('請先在上方設定並儲存 Google Sheets API 網址！');
+        return;
+      }
+      try {
+        const response = await fetch(apiUrl);
+        if (!response.ok) throw new Error('API 讀取失敗');
+        const data = await response.json();
+        const orders = data.orders || [];
+
+        if (orders.length === 0) {
+          alert('目前無當前點餐資料可匯出！');
+          return;
+        }
+
+        const rows = [["點餐時間", "單位", "姓名", "店家", "品項", "價格"]];
+        orders.forEach(ord => {
+          let dStr = ord.timestamp ? new Date(ord.timestamp).toLocaleString('zh-TW') : '';
+          rows.push([dStr, ord.department, ord.name, ord.store, ord.item, ord.price]);
+        });
+
+        const todayDate = new Date().toISOString().slice(0, 10);
+        exportToCSV(`便當點餐明細_${todayDate}.csv`, rows);
+      } catch (err) {
+        alert(`匯出失敗: ${err.message}`);
+      }
+    });
+
+    // Export History CSV
+    document.getElementById('btn-export-history-csv').addEventListener('click', async () => {
+      if (!apiUrl) {
+        alert('請先在上方設定並儲存 Google Sheets API 網址！');
+        return;
+      }
+      try {
+        const response = await fetch(apiUrl);
+        if (!response.ok) throw new Error('API 讀取失敗');
+        const data = await response.json();
+        const history = data.history || [];
+
+        if (history.length === 0) {
+          alert('目前 History 中無歷史統計紀錄可匯出！');
+          return;
+        }
+
+        const rows = [["日期時間", "店家", "數量", "總金額"]];
+        history.forEach(h => {
+          rows.push([h.date || h.timestamp, h.store, h.quantity, h.totalAmount]);
+        });
+
+        const todayDate = new Date().toISOString().slice(0, 10);
+        exportToCSV(`便當歷史訂單統計_${todayDate}.csv`, rows);
+      } catch (err) {
+        alert(`匯出歷史紀錄失敗: ${err.message}`);
       }
     });
 
