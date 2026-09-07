@@ -17,6 +17,69 @@
         grid-template-columns: 1fr;
       }
     }
+    .pay-btn-group {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+    }
+    .pay-btn {
+      font-size: 0.82rem;
+      padding: 0.3rem 0.6rem;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-secondary);
+      user-select: none;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+    }
+    .pay-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .pay-btn input[type="radio"] {
+      display: none;
+    }
+    .pay-btn-unpaid.active {
+      background: rgba(239, 68, 68, 0.2) !important;
+      border-color: rgba(239, 68, 68, 0.6) !important;
+      color: #f87171 !important;
+      font-weight: 600;
+    }
+    .pay-btn-paid.active {
+      background: rgba(16, 185, 129, 0.2) !important;
+      border-color: rgba(16, 185, 129, 0.6) !important;
+      color: #34d399 !important;
+      font-weight: 600;
+    }
+    .pay-btn-change.active {
+      background: rgba(245, 158, 11, 0.2) !important;
+      border-color: rgba(245, 158, 11, 0.6) !important;
+      color: #fbbf24 !important;
+      font-weight: 600;
+    }
+    .change-input-wrapper {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      background: rgba(245, 158, 11, 0.1);
+      padding: 0.2rem 0.4rem;
+      border-radius: 6px;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .change-amount-input {
+      width: 65px;
+      padding: 0.2rem 0.4rem;
+      font-size: 0.85rem;
+      border-radius: 4px;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--text-primary);
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -160,6 +223,52 @@
             📜 匯出歷史統計紀錄 (CSV)
           </button>
         </div>
+      <!-- Current Orders & Payment Management Card -->
+      <section class="card" id="payment-management-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+          <h2 class="card-title" style="margin-bottom: 0;"><span>💵</span> 當前訂單對帳與繳費管理</h2>
+          <button class="btn btn-secondary btn-sm" id="btn-refresh-payment-orders" style="padding: 0.3rem 0.6rem;">🔄 刷新對帳表</button>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+          管理者可於此即時編輯與對帳同仁的繳費狀態（選項：<strong>未給</strong>、<strong>給</strong>、或輸入<strong>找多少錢</strong>）。初始預設狀態皆為「未給」。
+        </p>
+
+        <!-- Payment Summary Dashboard -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+          <div style="background: rgba(15, 23, 42, 0.6); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08); text-align: center;">
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">應收總額</div>
+            <div id="pay-summary-total-amount" style="font-size: 1.2rem; font-weight: 700; color: var(--text-primary); margin-top: 0.2rem;">$0</div>
+          </div>
+          <div style="background: rgba(16, 185, 129, 0.1); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2); text-align: center;">
+            <div style="font-size: 0.75rem; color: #34d399;">已給金額 (人數)</div>
+            <div id="pay-summary-paid-info" style="font-size: 1.2rem; font-weight: 700; color: #34d399; margin-top: 0.2rem;">0 人 ($0)</div>
+          </div>
+          <div style="background: rgba(239, 68, 68, 0.1); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.2); text-align: center;">
+            <div style="font-size: 0.75rem; color: #f87171;">未給金額 (人數)</div>
+            <div id="pay-summary-unpaid-info" style="font-size: 1.2rem; font-weight: 700; color: #f87171; margin-top: 0.2rem;">0 人 ($0)</div>
+          </div>
+          <div style="background: rgba(245, 158, 11, 0.1); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.2); text-align: center;">
+            <div style="font-size: 0.75rem; color: #fbbf24;">需找錢總額</div>
+            <div id="pay-summary-change-amount" style="font-size: 1.2rem; font-weight: 700; color: #fbbf24; margin-top: 0.2rem;">$0</div>
+          </div>
+        </div>
+
+        <!-- Orders Payment Table -->
+        <div style="overflow-x: auto; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; background: rgba(15, 23, 42, 0.4);">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+            <thead>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04);">
+                <th style="padding: 0.75rem 1rem; width: 22%;">姓名 (單位)</th>
+                <th style="padding: 0.75rem 1rem; width: 35%;">訂購便當內容</th>
+                <th style="padding: 0.75rem 1rem; width: 15%;">應付金額</th>
+                <th style="padding: 0.75rem 1rem; min-width: 280px;">繳費狀態編輯</th>
+              </tr>
+            </thead>
+            <tbody id="payment-orders-list-body">
+              <tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem 0;">目前無點餐資料</td></tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <!-- Danger Zone / Data Management -->
@@ -267,6 +376,8 @@
     let activeStore = null;
     let serverActiveStore = null; // active store stored in config
     let historyData = []; // store rotation summaries [{date, store, count, amount}]
+    let currentOrders = []; // today's current orders [{timestamp, department, name, store, item, price, quantity}]
+    const PAYMENT_STORAGE_KEY = 'lunchbox_admin_payment_status';
 
     // Elements
     const apiUrlInput = document.getElementById('api-url-input');
@@ -328,10 +439,15 @@
         ];
         activeStore = '範例第一家';
         serverActiveStore = '範例第一家';
+        currentOrders = [
+          { department: '資訊部', name: '張小明', store: '範例第一家', item: '排骨便當', price: 100, quantity: 1 },
+          { department: '管理部', name: '李大華', store: '範例第一家', item: '雞腿便當', price: 120, quantity: 2 }
+        ];
         
         updateActiveStoreBanner();
         renderStoreNav();
         renderItemsEditor();
+        renderPaymentManagementTable();
       }
     });
 
@@ -432,6 +548,9 @@
         // Load active store config
         serverActiveStore = data.activeStore || null;
         
+        // Load current orders
+        currentOrders = data.orders || [];
+        
         const storeNames = storesState.map(s => s.store);
         if (storeNames.length > 0) {
           activeStore = storeNames[0];
@@ -442,6 +561,7 @@
         updateActiveStoreBanner();
         renderStoreNav();
         renderItemsEditor();
+        renderPaymentManagementTable();
         showStatus(menuStatusMsg, '雲端資料載入成功！', 'success');
         showStatus(apiStatusMsg, 'API 連線正常！', 'success');
       } catch (err) {
@@ -845,7 +965,10 @@
         const res = await response.json();
         
         if (res.success) {
-          alert('所有訂單已成功清空！');
+          localStorage.removeItem(PAYMENT_STORAGE_KEY);
+          currentOrders = [];
+          renderPaymentManagementTable();
+          alert('所有訂單已成功清空並歸檔！對帳表已自動重置。');
         } else {
           throw new Error(res.error || '不明錯誤');
         }
@@ -1043,6 +1166,189 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+    }
+
+    // Payment Management Logic
+    document.getElementById('btn-refresh-payment-orders').addEventListener('click', () => {
+      if (apiUrl) {
+        fetchAdminData();
+      } else {
+        renderPaymentManagementTable();
+      }
+    });
+
+    function getPaymentRecords() {
+      try {
+        const raw = localStorage.getItem(PAYMENT_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function savePaymentRecords(records) {
+      try {
+        localStorage.setItem(PAYMENT_STORAGE_KEY, JSON.stringify(records));
+      } catch (e) {}
+    }
+
+    function renderPaymentManagementTable() {
+      const tbody = document.getElementById('payment-orders-list-body');
+      if (!tbody) return;
+
+      if (!currentOrders || currentOrders.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem 0;">目前尚無當前點餐資料</td></tr>';
+        document.getElementById('pay-summary-total-amount').innerText = '$0';
+        document.getElementById('pay-summary-paid-info').innerText = '0 人 ($0)';
+        document.getElementById('pay-summary-unpaid-info').innerText = '0 人 ($0)';
+        document.getElementById('pay-summary-change-amount').innerText = '$0';
+        return;
+      }
+
+      // Group currentOrders by User key
+      const userMap = {};
+      currentOrders.forEach(ord => {
+        const key = `${ord.department || '無'}_${ord.name}`;
+        const qty = ord.quantity ? parseInt(ord.quantity) || 1 : 1;
+        const price = parseFloat(ord.price) || 0;
+
+        if (!userMap[key]) {
+          userMap[key] = {
+            name: ord.name,
+            department: ord.department || '無',
+            items: {},
+            totalPrice: 0
+          };
+        }
+        userMap[key].items[ord.item] = (userMap[key].items[ord.item] || 0) + qty;
+        userMap[key].totalPrice += (price * qty);
+      });
+
+      const records = getPaymentRecords();
+      tbody.innerHTML = '';
+
+      Object.entries(userMap).forEach(([userKey, userObj]) => {
+        if (!records[userKey]) {
+          records[userKey] = { status: '未給', changeAmount: '' };
+        }
+        const currentStatus = records[userKey].status || '未給';
+        const currentChange = records[userKey].changeAmount !== undefined ? records[userKey].changeAmount : '';
+
+        const itemStr = Object.entries(userObj.items)
+          .map(([item, q]) => q > 1 ? `${item} x${q}` : item)
+          .join('、');
+
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid rgba(255,255,255,0.06)';
+
+        tr.innerHTML = `
+          <td style="padding: 0.75rem 1rem; font-weight: 600; color: var(--text-primary);">
+            ${escapeHtml(userObj.name)}
+            <span style="font-size: 0.78rem; color: var(--text-secondary); font-weight: normal; margin-left: 0.25rem;">[${escapeHtml(userObj.department)}]</span>
+          </td>
+          <td style="padding: 0.75rem 1rem; color: var(--text-secondary); line-height: 1.4;">
+            ${escapeHtml(itemStr)}
+          </td>
+          <td style="padding: 0.75rem 1rem; font-weight: 700; color: var(--accent);">
+            $${userObj.totalPrice}
+          </td>
+          <td style="padding: 0.75rem 1rem;">
+            <div class="pay-btn-group">
+              <label class="pay-btn pay-btn-unpaid ${currentStatus === '未給' ? 'active' : ''}">
+                <input type="radio" name="pay-status-${escapeHtml(userKey)}" value="未給" ${currentStatus === '未給' ? 'checked' : ''}> ❌ 未給
+              </label>
+              <label class="pay-btn pay-btn-paid ${(currentStatus === '給' || currentStatus === '已給') ? 'active' : ''}">
+                <input type="radio" name="pay-status-${escapeHtml(userKey)}" value="給" ${(currentStatus === '給' || currentStatus === '已給') ? 'checked' : ''}> ✅ 給
+              </label>
+              <label class="pay-btn pay-btn-change ${currentStatus === '找錢' ? 'active' : ''}">
+                <input type="radio" name="pay-status-${escapeHtml(userKey)}" value="找錢" ${currentStatus === '找錢' ? 'checked' : ''}> 🪙 找錢
+              </label>
+              <div class="change-input-wrapper" style="display: ${currentStatus === '找錢' ? 'inline-flex' : 'none'};">
+                <span style="font-size: 0.8rem; color: #fbbf24;">找</span>
+                <input type="number" class="change-amount-input" value="${currentChange}" placeholder="0" min="0">
+                <span style="font-size: 0.8rem; color: #fbbf24;">元</span>
+              </div>
+            </div>
+          </td>
+        `;
+
+        const radios = tr.querySelectorAll(`input[name="pay-status-${escapeHtml(userKey)}"]`);
+        const changeWrapper = tr.querySelector('.change-input-wrapper');
+        const changeInput = tr.querySelector('.change-amount-input');
+
+        radios.forEach(radio => {
+          radio.addEventListener('change', () => {
+            const val = radio.value;
+            records[userKey].status = val;
+            savePaymentRecords(records);
+
+            tr.querySelectorAll('.pay-btn').forEach(btn => btn.classList.remove('active'));
+            radio.parentElement.classList.add('active');
+
+            if (val === '找錢') {
+              changeWrapper.style.display = 'inline-flex';
+              changeInput.focus();
+            } else {
+              changeWrapper.style.display = 'none';
+            }
+            updatePaymentDashboardStats();
+          });
+        });
+
+        changeInput.addEventListener('input', (e) => {
+          records[userKey].changeAmount = e.target.value;
+          savePaymentRecords(records);
+          updatePaymentDashboardStats();
+        });
+
+        tbody.appendChild(tr);
+      });
+
+      savePaymentRecords(records);
+      updatePaymentDashboardStats();
+    }
+
+    function updatePaymentDashboardStats() {
+      const records = getPaymentRecords();
+      const userMap = {};
+      currentOrders.forEach(ord => {
+        const key = `${ord.department || '無'}_${ord.name}`;
+        const qty = ord.quantity ? parseInt(ord.quantity) || 1 : 1;
+        const price = parseFloat(ord.price) || 0;
+        if (!userMap[key]) {
+          userMap[key] = { totalPrice: 0 };
+        }
+        userMap[key].totalPrice += (price * qty);
+      });
+
+      let grandTotal = 0;
+      let paidTotal = 0;
+      let paidCount = 0;
+      let unpaidTotal = 0;
+      let unpaidCount = 0;
+      let changeTotal = 0;
+
+      Object.entries(userMap).forEach(([userKey, userObj]) => {
+        grandTotal += userObj.totalPrice;
+        const rec = records[userKey] || { status: '未給', changeAmount: '' };
+        if (rec.status === '已給' || rec.status === '給') {
+          paidTotal += userObj.totalPrice;
+          paidCount++;
+        } else if (rec.status === '找錢') {
+          paidTotal += userObj.totalPrice;
+          paidCount++;
+          const changeNum = parseFloat(rec.changeAmount) || 0;
+          changeTotal += changeNum;
+        } else {
+          unpaidTotal += userObj.totalPrice;
+          unpaidCount++;
+        }
+      });
+
+      document.getElementById('pay-summary-total-amount').innerText = `$${grandTotal}`;
+      document.getElementById('pay-summary-paid-info').innerText = `${paidCount} 人 ($${paidTotal})`;
+      document.getElementById('pay-summary-unpaid-info').innerText = `${unpaidCount} 人 ($${unpaidTotal})`;
+      document.getElementById('pay-summary-change-amount').innerText = `$${changeTotal}`;
     }
   </script>
 </body>
