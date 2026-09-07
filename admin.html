@@ -235,33 +235,33 @@
 
         <!-- Payment Summary Dashboard -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
-          <div style="background: rgba(15, 23, 42, 0.6); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08); text-align: center;">
-            <div style="font-size: 0.75rem; color: var(--text-secondary);">應收總額</div>
-            <div id="pay-summary-total-amount" style="font-size: 1.2rem; font-weight: 700; color: var(--text-primary); margin-top: 0.2rem;">$0</div>
+          <div style="background: rgba(14, 165, 233, 0.15); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(14, 165, 233, 0.35); text-align: center;">
+            <div style="font-size: 0.75rem; color: #38bdf8; font-weight: 600;">應收總額</div>
+            <div id="pay-summary-total-amount" style="font-size: 1.25rem; font-weight: 700; color: #38bdf8; margin-top: 0.2rem;">$0</div>
           </div>
-          <div style="background: rgba(16, 185, 129, 0.1); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2); text-align: center;">
-            <div style="font-size: 0.75rem; color: #34d399;">已給金額 (人數)</div>
-            <div id="pay-summary-paid-info" style="font-size: 1.2rem; font-weight: 700; color: #34d399; margin-top: 0.2rem;">0 人 ($0)</div>
+          <div style="background: rgba(16, 185, 129, 0.15); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.35); text-align: center;">
+            <div style="font-size: 0.75rem; color: #34d399; font-weight: 600;">已給金額 (人數)</div>
+            <div id="pay-summary-paid-info" style="font-size: 1.25rem; font-weight: 700; color: #34d399; margin-top: 0.2rem;">0 人 ($0)</div>
           </div>
-          <div style="background: rgba(239, 68, 68, 0.1); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.2); text-align: center;">
-            <div style="font-size: 0.75rem; color: #f87171;">未給金額 (人數)</div>
-            <div id="pay-summary-unpaid-info" style="font-size: 1.2rem; font-weight: 700; color: #f87171; margin-top: 0.2rem;">0 人 ($0)</div>
+          <div style="background: rgba(239, 68, 68, 0.15); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.35); text-align: center;">
+            <div style="font-size: 0.75rem; color: #f87171; font-weight: 600;">未給金額 (人數)</div>
+            <div id="pay-summary-unpaid-info" style="font-size: 1.25rem; font-weight: 700; color: #f87171; margin-top: 0.2rem;">0 人 ($0)</div>
           </div>
-          <div style="background: rgba(245, 158, 11, 0.1); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.2); text-align: center;">
-            <div style="font-size: 0.75rem; color: #fbbf24;">需找錢總額</div>
-            <div id="pay-summary-change-amount" style="font-size: 1.2rem; font-weight: 700; color: #fbbf24; margin-top: 0.2rem;">$0</div>
+          <div style="background: rgba(245, 158, 11, 0.15); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.35); text-align: center;">
+            <div style="font-size: 0.75rem; color: #fbbf24; font-weight: 600;">需找錢總額</div>
+            <div id="pay-summary-change-amount" style="font-size: 1.25rem; font-weight: 700; color: #fbbf24; margin-top: 0.2rem;">$0</div>
           </div>
         </div>
 
         <!-- Orders Payment Table -->
-        <div style="overflow-x: auto; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; background: rgba(15, 23, 42, 0.4);">
+        <div style="overflow-x: auto; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; background: rgba(30, 41, 59, 0.6); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);">
           <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
             <thead>
-              <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04);">
-                <th style="padding: 0.75rem 1rem; width: 22%;">姓名 (單位)</th>
-                <th style="padding: 0.75rem 1rem; width: 35%;">訂購便當內容</th>
-                <th style="padding: 0.75rem 1rem; width: 15%;">應付金額</th>
-                <th style="padding: 0.75rem 1rem; min-width: 280px;">繳費狀態編輯</th>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08);">
+                <th style="padding: 0.75rem 1rem; width: 22%; color: #f1f5f9; font-weight: 600;">姓名 (單位)</th>
+                <th style="padding: 0.75rem 1rem; width: 35%; color: #f1f5f9; font-weight: 600;">訂購便當內容</th>
+                <th style="padding: 0.75rem 1rem; width: 15%; color: #f1f5f9; font-weight: 600;">應付金額</th>
+                <th style="padding: 0.75rem 1rem; min-width: 280px; color: #f1f5f9; font-weight: 600;">繳費狀態編輯</th>
               </tr>
             </thead>
             <tbody id="payment-orders-list-body">
