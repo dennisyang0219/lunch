@@ -66,6 +66,9 @@
           <div class="form-group">
             <label for="user-name">👤 您的姓名</label>
             <input type="text" id="user-name" required placeholder="請輸入姓名">
+            <div id="duplicate-warning-tip" class="duplicate-tip" style="display: none;">
+              <span>ℹ️</span> <span id="duplicate-warning-text">偵測到您先前已有點餐紀錄...</span>
+            </div>
           </div>
 
           <div class="form-group">
@@ -86,6 +89,14 @@
             </div>
           </div>
 
+          <div id="order-subtotal-card" class="order-subtotal-badge" style="display: none;">
+            <div class="subtotal-info">
+              <span>🛒 目前點餐小計：</span>
+              <span id="subtotal-item-count" class="badge-count">0 份便當</span>
+            </div>
+            <div class="subtotal-price" id="subtotal-total-price">$0</div>
+          </div>
+
           <button type="submit" class="btn" style="width: 100%;" id="btn-submit">
             <span>🚀</span> 送出訂單
           </button>
@@ -96,9 +107,12 @@
       <section class="card">
         <h2 class="card-title"><span>📊</span> 目前訂單統計看板</h2>
         
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
           <p style="font-size: 0.9rem; color: var(--text-secondary);">大家點了些什麼？看這裡跟著點就對了！</p>
-          <button class="btn btn-secondary btn-sm" id="btn-refresh-stats">🔄 重新整理</button>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary btn-sm" id="btn-open-copy-modal">📋 複製訂餐統計</button>
+            <button class="btn btn-secondary btn-sm" id="btn-refresh-stats">🔄 重新整理</button>
+          </div>
         </div>
 
         <div class="stats-grid" id="stats-summary">
@@ -111,7 +125,6 @@
               <tr>
                 <th>單位</th>
                 <th>姓名</th>
-                <th>店家</th>
                 <th>點餐品項</th>
                 <th>價格</th>
                 <th>點餐時間</th>
@@ -119,7 +132,7 @@
             </thead>
             <tbody id="orders-list-body">
               <tr>
-                <td colspan="6" style="text-align: center; color: var(--text-muted);">載入訂單中...</td>
+                <td colspan="5" style="text-align: center; color: var(--text-muted);">載入訂單中...</td>
               </tr>
             </tbody>
           </table>
@@ -146,6 +159,45 @@
     </div>
   </div>
 
+  <!-- Overwrite Confirmation Modal -->
+  <div class="modal-overlay" id="overwrite-confirm-modal">
+    <div class="modal" style="text-align: center; max-width: 420px;">
+      <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">⚠️</div>
+      <h3 class="modal-header" style="justify-content: center; margin-bottom: 0.5rem;">偵測到重複訂餐</h3>
+      <p style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 0.75rem;" id="overwrite-modal-desc">
+        您先前已有訂餐紀錄。
+      </p>
+      <p style="font-size: 0.85rem; color: #b45309; background: rgba(245, 158, 11, 0.12); padding: 0.6rem; border-radius: 6px; margin-bottom: 1.5rem; border: 1px solid rgba(245, 158, 11, 0.25);">
+        ⚠️ 選擇「覆蓋原本訂單」將會以您本次勾選的餐點取代原本的紀錄。
+      </p>
+      <div class="modal-actions" style="justify-content: center; gap: 0.75rem;">
+        <button class="btn btn-secondary btn-sm" id="btn-cancel-overwrite">取消</button>
+        <button class="btn btn-danger btn-sm" id="btn-confirm-overwrite">🔄 確認覆蓋原本訂單</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Copy Summary Modal -->
+  <div class="modal-overlay" id="copy-summary-modal">
+    <div class="modal" style="max-width: 520px;">
+      <h3 class="modal-header">📋 一鍵複製訂餐統計</h3>
+      
+      <div class="tab-group">
+        <button type="button" class="tab-btn active" id="tab-copy-store">📞 給店家 (電話訂餐數)</button>
+        <button type="button" class="tab-btn" id="tab-copy-line">💬 給同仁 (LINE 對帳明細)</button>
+      </div>
+
+      <div class="form-group">
+        <textarea id="copy-text-area" rows="10" readonly style="width: 100%; font-family: monospace; font-size: 0.85rem; padding: 0.75rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; resize: none; color: var(--text-primary);"></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary btn-sm" id="btn-close-copy-modal">關閉</button>
+        <button class="btn btn-sm" id="btn-do-copy">📋 複製文字至剪貼簿</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Success Order Modal -->
   <div class="modal-overlay" id="order-success-modal">
     <div class="modal" style="text-align: center;">
@@ -156,6 +208,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Toast Notification -->
+  <div id="toast-notification" class="toast" style="display: none;">已複製到剪貼簿！</div>
 
   <script>
     // Config
@@ -194,6 +249,31 @@
     const timerStatusText = document.getElementById('timer-status-text');
     const orderSuccessModal = document.getElementById('order-success-modal');
     const btnCloseSuccessModal = document.getElementById('btn-close-success-modal');
+
+    // Duplicate warning & Overwrite elements
+    const duplicateWarningTip = document.getElementById('duplicate-warning-tip');
+    const duplicateWarningText = document.getElementById('duplicate-warning-text');
+    const overwriteConfirmModal = document.getElementById('overwrite-confirm-modal');
+    const overwriteModalDesc = document.getElementById('overwrite-modal-desc');
+    const btnCancelOverwrite = document.getElementById('btn-cancel-overwrite');
+    const btnConfirmOverwrite = document.getElementById('btn-confirm-overwrite');
+    let isConfirmedOverwrite = false;
+
+    // Subtotal badge elements
+    const orderSubtotalCard = document.getElementById('order-subtotal-card');
+    const subtotalItemCount = document.getElementById('subtotal-item-count');
+    const subtotalTotalPrice = document.getElementById('subtotal-total-price');
+
+    // Copy Summary elements
+    const btnOpenCopyModal = document.getElementById('btn-open-copy-modal');
+    const copySummaryModal = document.getElementById('copy-summary-modal');
+    const tabCopyStore = document.getElementById('tab-copy-store');
+    const tabCopyLine = document.getElementById('tab-copy-line');
+    const copyTextArea = document.getElementById('copy-text-area');
+    const btnCloseCopyModal = document.getElementById('btn-close-copy-modal');
+    const btnDoCopy = document.getElementById('btn-do-copy');
+    const toastNotification = document.getElementById('toast-notification');
+    let currentCopyTab = 'store';
 
     // Page Init
     window.addEventListener('DOMContentLoaded', () => {
@@ -235,7 +315,214 @@
       });
     });
 
+    // Subtotal Calculation & Row Highlight
+    function updateSubtotal() {
+      let totalCount = 0;
+      let totalPrice = 0;
 
+      document.querySelectorAll('.menu-item-selection-row').forEach(row => {
+        const cb = row.querySelector('input[name="lunchbox-item"]');
+        if (cb && cb.checked) {
+          row.classList.add('is-selected');
+          const qtyInput = row.querySelector('.qty-input');
+          const qty = qtyInput ? (parseInt(qtyInput.value) || 1) : 1;
+          const price = parseFloat(cb.getAttribute('data-price')) || 0;
+          totalCount += qty;
+          totalPrice += (price * qty);
+        } else {
+          row.classList.remove('is-selected');
+        }
+      });
+
+      if (totalCount > 0) {
+        subtotalItemCount.innerText = `${totalCount} 份便當`;
+        subtotalTotalPrice.innerText = `$${totalPrice}`;
+        orderSubtotalCard.style.display = 'flex';
+      } else {
+        orderSubtotalCard.style.display = 'none';
+      }
+    }
+
+    // Duplicate Order Checking
+    function getExistingOrderForUser(name) {
+      if (!name || !activeStoreConfig) return null;
+      const userOrders = ordersData.filter(ord => 
+        ord.store === activeStoreConfig && 
+        ord.name.trim().toLowerCase() === name.trim().toLowerCase()
+      );
+      if (userOrders.length === 0) return null;
+
+      const itemCounts = {};
+      userOrders.forEach(ord => {
+        const qty = ord.quantity ? parseInt(ord.quantity) || 1 : 1;
+        itemCounts[ord.item] = (itemCounts[ord.item] || 0) + qty;
+      });
+
+      const summaryStr = Object.entries(itemCounts)
+        .map(([item, count]) => count > 1 ? `${item} x${count}` : item)
+        .join('、');
+
+      return {
+        orders: userOrders,
+        summaryText: summaryStr
+      };
+    }
+
+    function checkDuplicateUserOrder() {
+      const name = userNameInput.value.trim();
+      const existing = getExistingOrderForUser(name);
+
+      if (existing) {
+        duplicateWarningText.innerText = `偵測到「${name}」在本次店家已有訂餐紀錄（已點：${existing.summaryText}）。送出將會「覆蓋」原紀錄。`;
+        duplicateWarningTip.style.display = 'flex';
+      } else {
+        duplicateWarningTip.style.display = 'none';
+      }
+    }
+
+    userNameInput.addEventListener('input', checkDuplicateUserOrder);
+
+    // Overwrite Confirm Modal Listeners
+    btnConfirmOverwrite.addEventListener('click', () => {
+      isConfirmedOverwrite = true;
+      overwriteConfirmModal.classList.remove('active');
+      btnSubmit.click();
+    });
+
+    btnCancelOverwrite.addEventListener('click', () => {
+      isConfirmedOverwrite = false;
+      overwriteConfirmModal.classList.remove('active');
+    });
+
+    // Copy Summary Modal Listeners
+    btnOpenCopyModal.addEventListener('click', () => {
+      copySummaryModal.classList.add('active');
+      updateCopyTextContent();
+    });
+
+    btnCloseCopyModal.addEventListener('click', () => {
+      copySummaryModal.classList.remove('active');
+    });
+
+    tabCopyStore.addEventListener('click', () => {
+      tabCopyStore.classList.add('active');
+      tabCopyLine.classList.remove('active');
+      currentCopyTab = 'store';
+      updateCopyTextContent();
+    });
+
+    tabCopyLine.addEventListener('click', () => {
+      tabCopyLine.classList.add('active');
+      tabCopyStore.classList.remove('active');
+      currentCopyTab = 'line';
+      updateCopyTextContent();
+    });
+
+    function updateCopyTextContent() {
+      const storeName = activeStoreConfig || '未指定店家';
+      const filteredOrders = ordersData.filter(ord => ord.store === activeStoreConfig);
+      const nowStr = new Date().toLocaleString('zh-TW', { hour12: false });
+
+      if (currentCopyTab === 'store') {
+        const itemCounts = {};
+        let totalQty = 0;
+        let totalPrice = 0;
+
+        filteredOrders.forEach(ord => {
+          const qty = ord.quantity ? parseInt(ord.quantity) || 1 : 1;
+          const price = parseFloat(ord.price) || 0;
+          if (!itemCounts[ord.item]) {
+            itemCounts[ord.item] = { count: 0, total: 0 };
+          }
+          itemCounts[ord.item].count += qty;
+          itemCounts[ord.item].total += (price * qty);
+          totalQty += qty;
+          totalPrice += (price * qty);
+        });
+
+        let text = `🍱 訂餐統計匯總【${storeName}】\n`;
+        text += `📅 統計時間：${nowStr}\n`;
+        text += `-----------------------\n`;
+        
+        const items = Object.entries(itemCounts).sort((a, b) => b[1].count - a[1].count);
+        if (items.length === 0) {
+          text += `目前無點餐紀錄\n`;
+        } else {
+          items.forEach(([itemName, info], idx) => {
+            text += `${idx + 1}. ${itemName} x ${info.count} 份 ($${info.total})\n`;
+          });
+        }
+        text += `-----------------------\n`;
+        text += `總計：${totalQty} 份便當 / 共 $${totalPrice} 元`;
+        copyTextArea.value = text;
+      } else {
+        const userOrders = {};
+        let totalQty = 0;
+        let totalPrice = 0;
+
+        filteredOrders.forEach(ord => {
+          const qty = ord.quantity ? parseInt(ord.quantity) || 1 : 1;
+          const price = parseFloat(ord.price) || 0;
+          const key = `${ord.department || '無'}_${ord.name}`;
+
+          if (!userOrders[key]) {
+            userOrders[key] = {
+              department: ord.department || '無',
+              name: ord.name,
+              items: {},
+              userTotal: 0
+            };
+          }
+          userOrders[key].items[ord.item] = (userOrders[key].items[ord.item] || 0) + qty;
+          userOrders[key].userTotal += (price * qty);
+          totalQty += qty;
+          totalPrice += (price * qty);
+        });
+
+        let text = `📋 訂餐明細對帳表【${storeName}】\n`;
+        text += `📅 統計時間：${nowStr}\n`;
+        text += `-----------------------\n`;
+        
+        const list = Object.values(userOrders);
+        if (list.length === 0) {
+          text += `目前無點餐紀錄\n`;
+        } else {
+          list.forEach(u => {
+            const itemStrs = Object.entries(u.items).map(([it, q]) => q > 1 ? `${it} x${q}` : it).join('、');
+            text += `• [${u.department}] ${u.name}：${itemStrs} ($${u.userTotal})\n`;
+          });
+        }
+        text += `-----------------------\n`;
+        text += `總計：${totalQty} 份便當 / 共 $${totalPrice} 元`;
+        copyTextArea.value = text;
+      }
+    }
+
+    btnDoCopy.addEventListener('click', () => {
+      copyTextArea.select();
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(copyTextArea.value).then(() => showToast('📋 已複製訂餐統計至剪貼簿！')).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
+    });
+
+    function fallbackCopy() {
+      try {
+        document.execCommand('copy');
+        showToast('📋 已複製訂餐統計至剪貼簿！');
+      } catch (err) {
+        alert('複製失敗，請手動全選複製');
+      }
+    }
+
+    function showToast(msg) {
+      toastNotification.innerText = msg;
+      toastNotification.style.display = 'block';
+      setTimeout(() => {
+        toastNotification.style.display = 'none';
+      }, 2500);
+    }
 
     // Password Modal Logic
     btnGoAdmin.addEventListener('click', () => {
@@ -514,18 +801,21 @@
             qtySelector.style.display = 'none';
             qtyInput.value = 1;
           }
+          updateSubtotal();
         });
 
         btnMinus.addEventListener('click', () => {
           let val = parseInt(qtyInput.value) || 1;
           if (val > 1) {
             qtyInput.value = val - 1;
+            updateSubtotal();
           }
         });
 
         btnPlus.addEventListener('click', () => {
           let val = parseInt(qtyInput.value) || 1;
           qtyInput.value = val + 1;
+          updateSubtotal();
         });
       });
 
@@ -540,26 +830,62 @@
           btn.style.pointerEvents = 'none';
         });
       }
+      
+      updateSubtotal();
+    }
+
+    let isSubmitting = false;
+
+    function resetSubmitBtn() {
+      isSubmitting = false;
+      if (!deadlineTime || (new Date() <= deadlineTime)) {
+        btnSubmit.disabled = false;
+        btnSubmit.classList.remove('btn-disabled');
+        btnSubmit.style.pointerEvents = 'auto';
+        btnSubmit.innerHTML = '🚀 送出訂單';
+      }
     }
 
     // Submit Order
     orderForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       
+      // 1. 防連按防護：若正處於傳送/處理中，直接攔截不重複發送
+      if (isSubmitting) return;
+      isSubmitting = true;
+      
+      // 2. 立即禁用按鈕與點擊事件，並顯示載入中動畫
+      btnSubmit.disabled = true;
+      btnSubmit.classList.add('btn-disabled');
+      btnSubmit.style.pointerEvents = 'none';
+      btnSubmit.innerHTML = '<span class="spinner"></span> 處理中...';
+
       const department = userDepartmentSelect.value;
       const name = userNameInput.value.trim();
       const store = storeSelect.value;
       
       if (!department) {
         showStatus('請選擇您的單位', 'error');
+        resetSubmitBtn();
         return;
       }
       if (!name) {
         showStatus('請輸入您的姓名', 'error');
+        resetSubmitBtn();
         return;
       }
       if (!store) {
         showStatus('請選擇便當店', 'error');
+        resetSubmitBtn();
+        return;
+      }
+
+      // 檢查是否與已有訂單重複
+      const existingOrder = getExistingOrderForUser(name);
+      if (existingOrder && !isConfirmedOverwrite) {
+        overwriteModalDesc.innerText = `您（${name}）先前在 ${store} 已有點餐紀錄（已點：${existingOrder.summaryText}）。`;
+        overwriteConfirmModal.classList.add('active');
+        resetSubmitBtn();
         return;
       }
 
@@ -571,7 +897,6 @@
           const qty = qtyInput ? (parseInt(qtyInput.value) || 1) : 1;
           const price = parseFloat(cb.getAttribute('data-price')) || 0;
           
-          // Unpack items to write as multiple rows for maximum compatibility with both old and new backend script versions
           for (let i = 0; i < qty; i++) {
             checkedItems.push({
               item: cb.value,
@@ -584,18 +909,16 @@
 
       if (checkedItems.length === 0) {
         showStatus('請至少勾選一項便當品項！', 'error');
+        resetSubmitBtn();
         return;
       }
 
-      // Check client side deadline once more
       if (deadlineTime && (new Date() > deadlineTime)) {
         showStatus('抱歉，已過截止時間，無法送出訂單。', 'error');
+        resetSubmitBtn();
         return;
       }
 
-      // Start submit loader
-      btnSubmit.disabled = true;
-      btnSubmit.classList.add('btn-disabled');
       btnSubmit.innerHTML = '<span class="spinner"></span> 送出中...';
       showStatus('正在傳送訂單至 Google Sheet...', 'info');
 
@@ -605,7 +928,8 @@
           department: department,
           name: name,
           store: store,
-          items: checkedItems
+          items: checkedItems,
+          overwrite: !!existingOrder
         };
 
         const response = await fetch(apiUrl, {
@@ -619,9 +943,10 @@
         
         if (resData.success) {
           showStatus('🎉 訂單送出成功！已寫入試算表。', 'success');
-          // Clear selections
+          isConfirmedOverwrite = false;
           userDepartmentSelect.value = '';
           userNameInput.value = '';
+          duplicateWarningTip.style.display = 'none';
           document.querySelectorAll('input[name="lunchbox-item"]:checked').forEach(cb => {
             cb.checked = false;
           });
@@ -631,9 +956,8 @@
           document.querySelectorAll('.qty-input').forEach(inp => {
             inp.value = 1;
           });
-          // Refresh statistics
+          updateSubtotal();
           await fetchData();
-          // Pop success dialog
           orderSuccessModal.classList.add('active');
         } else {
           throw new Error(resData.error || '不明錯誤');
@@ -642,9 +966,7 @@
         console.error(err);
         showStatus(`送出訂單失敗: ${err.message}`, 'error');
       } finally {
-        btnSubmit.disabled = false;
-        btnSubmit.classList.remove('btn-disabled');
-        btnSubmit.innerHTML = '🚀 送出訂單';
+        resetSubmitBtn();
       }
     });
 
@@ -691,7 +1013,7 @@
       // 2. Populate detailed list table
       ordersListBody.innerHTML = '';
       if (filteredOrders.length === 0) {
-        ordersListBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">目前無此店家的點餐資料</td></tr>';
+        ordersListBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">目前無此店家的點餐資料</td></tr>';
         return;
       }
 
@@ -742,7 +1064,6 @@
         tr.innerHTML = `
           <td><span style="background: rgba(14, 165, 233, 0.05); color: #0284c7; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">${escapeHtml(ord.department || '無')}</span></td>
           <td style="font-weight: 500;">${escapeHtml(ord.name)}</td>
-          <td><span style="background: rgba(2, 132, 199, 0.05); color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">${escapeHtml(ord.store)}</span></td>
           <td>${displayItem}</td>
           <td style="color: var(--text-secondary); font-weight: 500;">$${ord.totalPrice}</td>
           <td style="font-size: 0.8rem; color: var(--text-muted);">${dateStr}</td>
