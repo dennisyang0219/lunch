@@ -74,8 +74,8 @@
         <!-- Quick presets -->
         <div class="presets-container" style="margin-top: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
           <span style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; width: 100%; margin-bottom: 0.25rem; font-weight: 500;">⚡ 快速設定截止時間：</span>
-          <button class="btn btn-secondary btn-sm preset-btn" data-time="08:50">今天上午 08:50</button>
-          <button class="btn btn-secondary btn-sm preset-btn" data-time="15:00">今天下午 03:00 (15:00)</button>
+          <button class="btn btn-secondary btn-sm preset-btn" data-time="08:50">🌅 當日上午 08:50</button>
+          <button class="btn btn-secondary btn-sm preset-btn" data-time="15:50">🌆 當日下午 03:50 (15:50)</button>
         </div>
       </section>
 
@@ -515,6 +515,20 @@
         btnClearDeadline.disabled = false;
         btnClearDeadline.innerHTML = '清除時間';
       }
+    });
+
+    // Quick Preset Deadline Buttons
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const timeStr = btn.getAttribute('data-time');
+        if (!timeStr) return;
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        
+        deadlineInput.value = `${year}-${month}-${day}T${timeStr}`;
+      });
     });
 
     // Add Store
