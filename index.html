@@ -83,7 +83,12 @@
           </div>
 
           <div class="form-group">
-            <label>🍱 選擇便當品項 (可多選)</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+              <label style="margin-bottom: 0;">🍱 選擇便當品項 (可多選)</label>
+              <div id="menu-search-wrapper" style="display: none; width: 100%; max-width: 220px;">
+                <input type="text" id="menu-search-input" placeholder="🔍 搜尋菜色 (如: 排骨)" style="padding: 0.35rem 0.65rem; font-size: 0.82rem; border-radius: 6px; border: 1px solid rgba(14, 165, 233, 0.25); background: rgba(15, 23, 42, 0.6); color: var(--text-primary); width: 100%;">
+              </div>
+            </div>
             <div class="menu-options-list" id="menu-items-container">
               <div class="empty-menu-placeholder">請先選擇便當店</div>
             </div>
@@ -822,18 +827,50 @@
     function renderMenuItems(storeName) {
       menuItemsContainer.innerHTML = '';
       const items = menuData.filter(m => m.store === storeName);
+      const searchWrapper = document.getElementById('menu-search-wrapper');
+      const searchInput = document.getElementById('menu-search-input');
 
       if (items.length === 0) {
+        if (searchWrapper) searchWrapper.style.display = 'none';
         menuItemsContainer.innerHTML = '<div class="empty-menu-placeholder">此店家無品項</div>';
         return;
       }
 
+      if (searchWrapper) {
+        searchWrapper.style.display = 'block';
+        if (searchInput) searchInput.value = '';
+      }
+
+      // Calculate popularity from ordersData for this store
+      const storeItemCounts = {};
+      ordersData.filter(o => o.store === storeName).forEach(o => {
+        const qty = o.quantity ? parseInt(o.quantity) || 1 : 1;
+        storeItemCounts[o.item] = (storeItemCounts[o.item] || 0) + qty;
+      });
+
+      // Get distinct order counts in descending order (only > 0)
+      const distinctCounts = [...new Set(Object.values(storeItemCounts).filter(c => c > 0))].sort((a, b) => b - a);
+
       items.forEach(item => {
         const row = document.createElement('div');
         row.className = 'menu-item-selection-row';
+        row.setAttribute('data-item-name', item.item);
+        
+        let hotBadge = '';
+        const orderCount = storeItemCounts[item.item] || 0;
+        if (orderCount > 0 && distinctCounts.length > 0) {
+          if (orderCount === distinctCounts[0]) {
+            hotBadge = `<span style="background: linear-gradient(135deg, #ef4444, #f97316); color: #ffffff; font-size: 0.68rem; padding: 0.12rem 0.45rem; border-radius: 4px; font-weight: 700; margin-left: 0.4rem; box-shadow: 0 2px 4px rgba(239,68,68,0.3);">🔥 熱銷 NO.1</span>`;
+          } else if (distinctCounts.length >= 2 && orderCount === distinctCounts[1]) {
+            hotBadge = `<span style="background: linear-gradient(135deg, #3b82f6, #6366f1); color: #ffffff; font-size: 0.68rem; padding: 0.12rem 0.45rem; border-radius: 4px; font-weight: 700; margin-left: 0.4rem; box-shadow: 0 2px 4px rgba(59,130,246,0.3);">🥈 熱銷 NO.2</span>`;
+          } else if (distinctCounts.length >= 3 && orderCount === distinctCounts[2]) {
+            hotBadge = `<span style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #ffffff; font-size: 0.68rem; padding: 0.12rem 0.45rem; border-radius: 4px; font-weight: 700; margin-left: 0.4rem; box-shadow: 0 2px 4px rgba(245,158,11,0.3);">🥉 熱銷 NO.3</span>`;
+          }
+        }
+
         row.innerHTML = `
           <label class="checkbox-container">
-            <span class="item-name">${escapeHtml(item.item)}</span>
+            <span class="item-name">${escapeHtml(item.item)}${hotBadge}</span>
             <span class="item-price">$${item.price}</span>
             <input type="checkbox" name="lunchbox-item" value="${escapeHtml(item.item)}" data-price="${item.price}">
             <span class="checkmark"></span>
@@ -890,6 +927,39 @@
       }
       
       updateSubtotal();
+    }
+
+    // Real-time Menu Item Keyword Search Filter
+    const menuSearchInput = document.getElementById('menu-search-input');
+    if (menuSearchInput) {
+      menuSearchInput.addEventListener('input', () => {
+        const query = menuSearchInput.value.trim().toLowerCase();
+        let visibleCount = 0;
+
+        document.querySelectorAll('#menu-items-container .menu-item-selection-row').forEach(row => {
+          const itemName = row.getAttribute('data-item-name') || '';
+          if (!query || itemName.toLowerCase().includes(query)) {
+            row.style.display = 'flex';
+            visibleCount++;
+          } else {
+            row.style.display = 'none';
+          }
+        });
+
+        let noMatchEl = document.getElementById('search-no-match-placeholder');
+        if (visibleCount === 0) {
+          if (!noMatchEl) {
+            noMatchEl = document.createElement('div');
+            noMatchEl.id = 'search-no-match-placeholder';
+            noMatchEl.className = 'empty-menu-placeholder';
+            document.getElementById('menu-items-container').appendChild(noMatchEl);
+          }
+          noMatchEl.innerText = `🔍 找不到符合「${query}」的便當品項`;
+          noMatchEl.style.display = 'block';
+        } else if (noMatchEl) {
+          noMatchEl.style.display = 'none';
+        }
+      });
     }
 
     let isSubmitting = false;
