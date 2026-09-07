@@ -572,10 +572,22 @@
         return;
       }
 
-      const rows = [["點餐時間", "單位", "姓名", "店家", "品項", "價格"]];
+      let paymentRecords = {};
+      try {
+        const raw = localStorage.getItem('lunchbox_admin_payment_status');
+        if (raw) paymentRecords = JSON.parse(raw);
+      } catch (e) {}
+
+      const rows = [["點餐時間", "單位", "姓名", "店家", "品項", "價格", "繳費狀態"]];
       filteredOrders.forEach(ord => {
         let dStr = ord.timestamp ? new Date(ord.timestamp).toLocaleString('zh-TW') : '';
-        rows.push([dStr, ord.department || '', ord.name, ord.store, ord.item, ord.price]);
+        let payStatus = '未給';
+        const rec = paymentRecords[`${ord.department || '無'}_${ord.name}`];
+        if (rec) {
+          if (rec.status === '已給' || rec.status === '給') payStatus = '已給';
+          else if (rec.status === '找錢') payStatus = rec.changeAmount ? `找錢 (找$${rec.changeAmount})` : '找錢';
+        }
+        rows.push([dStr, ord.department || '', ord.name, ord.store, ord.item, ord.price, payStatus]);
       });
 
       const todayDate = new Date().toISOString().slice(0, 10);
