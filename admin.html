@@ -1097,45 +1097,44 @@
 
     // Export Today's Orders CSV
     document.getElementById('btn-export-today-csv').addEventListener('click', async () => {
-      if (!apiUrl) {
-        alert('請先在上方設定並儲存 Google Sheets API 網址！');
+      let orders = currentOrders && currentOrders.length > 0 ? [...currentOrders] : [];
+
+      if (orders.length === 0 && apiUrl) {
+        try {
+          const response = await fetch(apiUrl);
+          if (response.ok) {
+            const data = await response.json();
+            orders = data.orders || [];
+          }
+        } catch (e) {}
+      }
+
+      if (orders.length === 0) {
+        alert('目前無當前點餐資料可匯出！');
         return;
       }
-      try {
-        const response = await fetch(apiUrl);
-        if (!response.ok) throw new Error('API 讀取失敗');
-        const data = await response.json();
-        const orders = data.orders || [];
 
-        if (orders.length === 0) {
-          alert('目前無當前點餐資料可匯出！');
-          return;
+      // Sort orders by Bento Item (品項) primary, then Person Name (姓名) secondary for easy bento distribution
+      orders.sort((a, b) => {
+        const itemComp = (a.item || '').localeCompare(b.item || '', 'zh-Hant');
+        if (itemComp !== 0) return itemComp;
+        return (a.name || '').localeCompare(b.name || '', 'zh-Hant');
+      });
+
+      const rows = [["點餐時間", "單位", "姓名", "店家", "品項", "價格", "繳費狀態"]];
+      orders.forEach(ord => {
+        let dStr = ord.timestamp ? new Date(ord.timestamp).toLocaleString('zh-TW') : '';
+        let payStatus = '未給';
+        const rec = getPaymentRecords()[`${ord.department || '無'}_${ord.name}`];
+        if (rec) {
+          if (rec.status === '已給' || rec.status === '給') payStatus = '已給';
+          else if (rec.status === '找錢') payStatus = rec.changeAmount ? `找錢 (找$${rec.changeAmount})` : '找錢';
         }
+        rows.push([dStr, ord.department || '', ord.name, ord.store, ord.item, ord.price, payStatus]);
+      });
 
-        // Sort orders by Bento Item (品項) primary, then Person Name (姓名) secondary for easy bento distribution
-        orders.sort((a, b) => {
-          const itemComp = (a.item || '').localeCompare(b.item || '', 'zh-Hant');
-          if (itemComp !== 0) return itemComp;
-          return (a.name || '').localeCompare(b.name || '', 'zh-Hant');
-        });
-
-        const rows = [["點餐時間", "單位", "姓名", "店家", "品項", "價格", "繳費狀態"]];
-        orders.forEach(ord => {
-          let dStr = ord.timestamp ? new Date(ord.timestamp).toLocaleString('zh-TW') : '';
-          let payStatus = '未給';
-          const rec = getPaymentRecords()[`${ord.department || '無'}_${ord.name}`];
-          if (rec) {
-            if (rec.status === '已給' || rec.status === '給') payStatus = '已給';
-            else if (rec.status === '找錢') payStatus = rec.changeAmount ? `找錢 (找$${rec.changeAmount})` : '找錢';
-          }
-          rows.push([dStr, ord.department || '', ord.name, ord.store, ord.item, ord.price, payStatus]);
-        });
-
-        const todayDate = new Date().toISOString().slice(0, 10);
-        exportToCSV(`便當點餐明細_${todayDate}.csv`, rows);
-      } catch (err) {
-        alert(`匯出失敗: ${err.message}`);
-      }
+      const todayDate = new Date().toISOString().slice(0, 10);
+      exportToCSV(`便當點餐明細_${todayDate}.csv`, rows);
     });
 
     // Export History CSV
@@ -1243,10 +1242,16 @@
         userMap[key].totalPrice += (price * qty);
       });
 
-      const records = getPaymentRecords();
-      tbody.innerHTML = '';
+      // Sort userMap entries by primary Bento Item name (品項) so onscreen table is also grouped by bento!
+      const userEntries = Object.entries(userMap).sort((a, b) => {
+        const itemA = Object.keys(a[1].items)[0] || '';
+        const itemB = Object.keys(b[1].items)[0] || '';
+        const comp = itemA.localeCompare(itemB, 'zh-Hant');
+        if (comp !== 0) return comp;
+        return a[1].name.localeCompare(b[1].name, 'zh-Hant');
+      });
 
-      Object.entries(userMap).forEach(([userKey, userObj]) => {
+      userEntries.forEach(([userKey, userObj]) => {
         if (!records[userKey]) {
           records[userKey] = { status: '未給', changeAmount: '' };
         }

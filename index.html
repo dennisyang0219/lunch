@@ -1197,8 +1197,12 @@
         }
       });
 
-      // Show newest orders on top
-      const sortedOrders = [...consolidatedOrders].reverse();
+      // Sort orders by Bento Item (品項) primary, then Person Name (姓名) secondary for easy bento distribution
+      const sortedOrders = [...consolidatedOrders].sort((a, b) => {
+        const itemComp = (a.item || '').localeCompare(b.item || '', 'zh-Hant');
+        if (itemComp !== 0) return itemComp;
+        return (a.name || '').localeCompare(b.name || '', 'zh-Hant');
+      });
       
       sortedOrders.forEach(ord => {
         const tr = document.createElement('tr');
