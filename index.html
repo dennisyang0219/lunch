@@ -221,7 +221,7 @@
   <script>
     // Config
     const API_KEY_STORAGE = 'lunchbox_api_url';
-    const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwlFgxgl3qGat5EyaE5cZLK-h8Csz-PTzpw1GTgrFNafcP_GH17YFFVZKl1nk6TrDU1BQ/exec'; // 填入固定 API 網址即可免設定直接使用！
+    const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwmWXwO3tljR_gReHpeMksv2vyxgk97_F3sl7HDL1A8T1ji1CwGpoXUps-KMIWKIsIXgA/exec'; // 填入固定 API 網址即可免設定直接使用！
     let apiUrl = DEFAULT_API_URL.trim() || localStorage.getItem(API_KEY_STORAGE) || '';
     let menuData = [];
     let storesData = []; // store details (address, phone, remarks)
@@ -295,9 +295,11 @@
         window.history.replaceState({}, document.title, cleanUrl);
       }
 
-      // Ensure inputs are empty on load
-      userDepartmentSelect.value = '';
-      userNameInput.value = '';
+      // Auto-load saved Name & Department from localStorage if available
+      const savedName = localStorage.getItem('lunchbox_user_name');
+      const savedDept = localStorage.getItem('lunchbox_user_dept');
+      if (savedDept) userDepartmentSelect.value = savedDept;
+      if (savedName) userNameInput.value = savedName;
       
       // Check API URL
       if (!apiUrl) {
@@ -1082,11 +1084,15 @@
         const resData = await response.json();
         
         if (resData.success) {
+          // Save user name and department to localStorage for next time
+          localStorage.setItem('lunchbox_user_name', name);
+          localStorage.setItem('lunchbox_user_dept', department);
+
           showStatus('🎉 訂單送出成功！已寫入試算表。', 'success');
           isConfirmedOverwrite = false;
-          userDepartmentSelect.value = '';
-          userNameInput.value = '';
-          duplicateWarningTip.style.display = 'none';
+          userDepartmentSelect.value = department;
+          userNameInput.value = name;
+          checkDuplicateUserOrder();
           document.querySelectorAll('input[name="lunchbox-item"]:checked').forEach(cb => {
             cb.checked = false;
           });

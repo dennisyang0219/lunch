@@ -293,7 +293,7 @@
     
     // Config & States
     const API_KEY_STORAGE = 'lunchbox_api_url';
-    const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwlFgxgl3qGat5EyaE5cZLK-h8Csz-PTzpw1GTgrFNafcP_GH17YFFVZKl1nk6TrDU1BQ/exec'; // 填入固定 API 網址即可免設定直接使用！
+    const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwmWXwO3tljR_gReHpeMksv2vyxgk97_F3sl7HDL1A8T1ji1CwGpoXUps-KMIWKIsIXgA/exec'; // 填入固定 API 網址即可免設定直接使用！
     let apiUrl = DEFAULT_API_URL.trim() || localStorage.getItem(API_KEY_STORAGE) || '';
 
     async function verifyAdminAuth() {
@@ -1224,11 +1224,15 @@
           userMap[key] = {
             name: ord.name,
             department: ord.department || '無',
+            store: ord.store || '',
             items: {},
             totalPrice: 0
           };
         }
-        userMap[key].items[ord.item] = (userMap[key].items[ord.item] || 0) + qty;
+        if (!userMap[key].items[ord.item]) {
+          userMap[key].items[ord.item] = { count: 0, price: price };
+        }
+        userMap[key].items[ord.item].count += qty;
         userMap[key].totalPrice += (price * qty);
       });
 
@@ -1242,26 +1246,45 @@
         const currentStatus = records[userKey].status || '未給';
         const currentChange = records[userKey].changeAmount !== undefined ? records[userKey].changeAmount : '';
 
-        const itemStr = Object.entries(userObj.items)
-          .map(([item, q]) => q > 1 ? `${item} x${q}` : item)
-          .join('、');
-
         const tr = document.createElement('tr');
         tr.style.borderBottom = '1px solid #f1f5f9';
         tr.style.background = '#ffffff';
 
+        const itemsHtml = Object.entries(userObj.items).map(([itemName, info]) => `
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; background: #f8fafc; padding: 0.3rem 0.55rem; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 0.3rem;">
+            <span style="font-size: 0.88rem; font-weight: 600; color: #1e293b;">${escapeHtml(itemName)} <span style="font-size: 0.75rem; color: #64748b;">($${info.price})</span></span>
+            <div style="display: flex; align-items: center; gap: 0.25rem;">
+              <button class="btn btn-secondary btn-sm btn-qty-dec" data-item="${escapeHtml(itemName)}" style="padding: 0.1rem 0.45rem; font-size: 0.75rem; border-radius: 4px; line-height: 1;" title="數量 -1">-</button>
+              <span style="font-weight: 800; color: #0f172a; min-width: 1.2rem; text-align: center; font-size: 0.88rem;">${info.count}</span>
+              <button class="btn btn-secondary btn-sm btn-qty-inc" data-item="${escapeHtml(itemName)}" style="padding: 0.1rem 0.45rem; font-size: 0.75rem; border-radius: 4px; line-height: 1;" title="數量 +1">+</button>
+              <button class="btn btn-secondary btn-sm btn-item-remove" data-item="${escapeHtml(itemName)}" style="padding: 0.1rem 0.35rem; font-size: 0.75rem; border-radius: 4px; margin-left: 0.25rem; color: #ef4444;" title="刪除此餐點">🗑️</button>
+            </div>
+          </div>
+        `).join('');
+
         tr.innerHTML = `
-          <td style="padding: 0.85rem 1rem; font-weight: 700; color: #0f172a;">
-            ${escapeHtml(userObj.name)}
-            <span style="font-size: 0.8rem; color: #64748b; font-weight: 500; margin-left: 0.25rem;">[${escapeHtml(userObj.department)}]</span>
+          <td style="padding: 0.85rem 1rem; font-weight: 700; color: #0f172a; vertical-align: top;">
+            <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+              <div>
+                ${escapeHtml(userObj.name)}
+                <span style="font-size: 0.8rem; color: #64748b; font-weight: 500; margin-left: 0.25rem;">[${escapeHtml(userObj.department)}]</span>
+              </div>
+              <div>
+                <button class="btn btn-danger btn-sm btn-cancel-user-all" style="padding: 0.15rem 0.5rem; font-size: 0.72rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.2rem;" title="取消此同仁點餐">
+                  🗑️ 取消此位訂餐
+                </button>
+              </div>
+            </div>
           </td>
-          <td style="padding: 0.85rem 1rem; color: #334155; line-height: 1.4; font-weight: 500;">
-            ${escapeHtml(itemStr)}
+          <td style="padding: 0.85rem 1rem; color: #334155; line-height: 1.4; vertical-align: top;">
+            <div class="user-items-edit-list">
+              ${itemsHtml}
+            </div>
           </td>
-          <td style="padding: 0.85rem 1rem; font-weight: 800; color: #0f172a; font-size: 1rem;">
+          <td style="padding: 0.85rem 1rem; font-weight: 800; color: #0f172a; font-size: 1rem; vertical-align: top;">
             $${userObj.totalPrice}
           </td>
-          <td style="padding: 0.85rem 1rem;">
+          <td style="padding: 0.85rem 1rem; vertical-align: top;">
             <div class="pay-btn-group">
               <label class="pay-btn pay-btn-unpaid ${currentStatus === '未給' ? 'active' : ''}">
                 <input type="radio" name="pay-status-${escapeHtml(userKey)}" value="未給" ${currentStatus === '未給' ? 'checked' : ''}> ❌ 未給
@@ -1280,6 +1303,44 @@
             </div>
           </td>
         `;
+
+        // 1. Cancel Entire User Order
+        const btnCancelAll = tr.querySelector('.btn-cancel-user-all');
+        btnCancelAll.addEventListener('click', async () => {
+          if (!confirm(`確定要取消「${userObj.name}」的全部點餐紀錄嗎？`)) return;
+          
+          currentOrders = currentOrders.filter(o => 
+            !(o.name.trim() === userObj.name.trim() && (o.department || '無') === userObj.department)
+          );
+          renderPaymentManagementTable();
+          await syncUserOrderChangeToCloud(userObj.name, userObj.department, userObj.store, []);
+        });
+
+        // 2. Quantity Minus
+        tr.querySelectorAll('.btn-qty-dec').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const itemName = btn.getAttribute('data-item');
+            await updateUserItemQuantity(userObj.name, userObj.department, userObj.store, itemName, -1);
+          });
+        });
+
+        // 3. Quantity Plus
+        tr.querySelectorAll('.btn-qty-inc').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const itemName = btn.getAttribute('data-item');
+            await updateUserItemQuantity(userObj.name, userObj.department, userObj.store, itemName, +1);
+          });
+        });
+
+        // 4. Remove Item
+        tr.querySelectorAll('.btn-item-remove').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const itemName = btn.getAttribute('data-item');
+            if (confirm(`確定要刪除「${userObj.name}」點的【${itemName}】嗎？`)) {
+              await updateUserItemQuantity(userObj.name, userObj.department, userObj.store, itemName, -999);
+            }
+          });
+        });
 
         const radios = tr.querySelectorAll(`input[name="pay-status-${escapeHtml(userKey)}"]`);
         const changeWrapper = tr.querySelector('.change-input-wrapper');
@@ -1358,6 +1419,77 @@
       document.getElementById('pay-summary-paid-info').innerText = `${paidCount} 人 ($${paidTotal})`;
       document.getElementById('pay-summary-unpaid-info').innerText = `${unpaidCount} 人 ($${unpaidTotal})`;
       document.getElementById('pay-summary-change-amount').innerText = `$${changeTotal}`;
+    }
+
+    async function updateUserItemQuantity(name, department, store, itemName, delta) {
+      const userOrders = currentOrders.filter(o => 
+        o.name.trim() === name.trim() && 
+        (o.department || '無') === department
+      );
+
+      const itemCounts = {};
+      let itemPrice = 0;
+      userOrders.forEach(o => {
+        itemCounts[o.item] = (itemCounts[o.item] || 0) + (parseInt(o.quantity) || 1);
+        if (o.item === itemName) itemPrice = parseFloat(o.price) || 0;
+      });
+
+      if (delta === -999) {
+        delete itemCounts[itemName];
+      } else {
+        const newQty = (itemCounts[itemName] || 0) + delta;
+        if (newQty <= 0) {
+          delete itemCounts[itemName];
+        } else {
+          itemCounts[itemName] = newQty;
+        }
+      }
+
+      currentOrders = currentOrders.filter(o => 
+        !(o.name.trim() === name.trim() && (o.department || '無') === department)
+      );
+
+      const updatedItemsForCloud = [];
+      Object.entries(itemCounts).forEach(([itName, count]) => {
+        const existingOrd = userOrders.find(o => o.item === itName);
+        const prc = existingOrd ? (parseFloat(existingOrd.price) || 0) : itemPrice;
+        for (let i = 0; i < count; i++) {
+          currentOrders.push({
+            timestamp: new Date().toISOString(),
+            department: department === '無' ? '' : department,
+            name: name,
+            store: store,
+            item: itName,
+            price: prc,
+            quantity: 1
+          });
+        }
+        updatedItemsForCloud.push({ item: itName, price: prc, quantity: count });
+      });
+
+      renderPaymentManagementTable();
+      await syncUserOrderChangeToCloud(name, department, store, updatedItemsForCloud);
+    }
+
+    async function syncUserOrderChangeToCloud(name, department, store, items) {
+      if (!apiUrl) return;
+      try {
+        const action = items.length === 0 ? 'deleteUserOrder' : 'updateUserOrder';
+        await fetch(apiUrl, {
+          method: 'POST',
+          mode: 'cors',
+          body: JSON.stringify({
+            action: action,
+            name: name,
+            department: department === '無' ? '' : department,
+            store: store,
+            items: items,
+            password: sessionStorage.getItem('admin_password')
+          })
+        });
+      } catch (err) {
+        console.error('雲端同步失敗:', err);
+      }
     }
   </script>
 </body>
