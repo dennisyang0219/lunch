@@ -1112,6 +1112,13 @@
           return;
         }
 
+        // Sort orders by Bento Item (品項) primary, then Person Name (姓名) secondary for easy bento distribution
+        orders.sort((a, b) => {
+          const itemComp = (a.item || '').localeCompare(b.item || '', 'zh-Hant');
+          if (itemComp !== 0) return itemComp;
+          return (a.name || '').localeCompare(b.name || '', 'zh-Hant');
+        });
+
         const rows = [["點餐時間", "單位", "姓名", "店家", "品項", "價格", "繳費狀態"]];
         orders.forEach(ord => {
           let dStr = ord.timestamp ? new Date(ord.timestamp).toLocaleString('zh-TW') : '';
