@@ -1247,6 +1247,9 @@
     function renderPaymentManagementTable() {
       const tbody = document.getElementById('payment-orders-list-body');
       if (!tbody) return;
+      tbody.innerHTML = '';
+
+      const records = getPaymentRecords();
 
       if (!currentOrders || currentOrders.length === 0) {
         tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem 0;">目前尚無當前點餐資料</td></tr>';
