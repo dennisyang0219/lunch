@@ -588,6 +588,10 @@
       });
 
       const rows = [["點餐時間", "單位", "姓名", "店家", "品項", "價格", "繳費狀態"]];
+      const itemSummaryMap = {};
+      let totalBentoQty = 0;
+      let grandTotalAmount = 0;
+
       filteredOrders.forEach(ord => {
         let dStr = ord.timestamp ? new Date(ord.timestamp).toLocaleString('zh-TW') : '';
         let payStatus = '未給';
@@ -596,8 +600,34 @@
           if (rec.status === '已給' || rec.status === '給') payStatus = '已給';
           else if (rec.status === '找錢') payStatus = rec.changeAmount ? `找錢 (找$${rec.changeAmount})` : '找錢';
         }
-        rows.push([dStr, ord.department || '', ord.name, ord.store, ord.item, ord.price, payStatus]);
+        const qty = ord.quantity ? parseInt(ord.quantity) || 1 : 1;
+        const price = parseFloat(ord.price) || 0;
+
+        rows.push([dStr, ord.department || '', ord.name, ord.store, ord.item, price, payStatus]);
+
+        if (!itemSummaryMap[ord.item]) {
+          itemSummaryMap[ord.item] = { count: 0, subtotal: 0 };
+        }
+        itemSummaryMap[ord.item].count += qty;
+        itemSummaryMap[ord.item].subtotal += (price * qty);
+        totalBentoQty += qty;
+        grandTotalAmount += (price * qty);
       });
+
+      // Add Summary Section at bottom of CSV
+      rows.push([]);
+      rows.push(["【品項數量匯總統計】"]);
+      rows.push(["品項名稱", "數量 (份)", "小計金額 (元)"]);
+
+      const sortedSummaryItems = Object.entries(itemSummaryMap).sort((a, b) => b[1].count - a[1].count);
+      sortedSummaryItems.forEach(([itemName, info]) => {
+        rows.push([itemName, info.count, info.subtotal]);
+      });
+
+      rows.push([]);
+      rows.push(["【訂單總計】"]);
+      rows.push(["便當總數量 (份)", totalBentoQty]);
+      rows.push(["訂單總金額 (元)", grandTotalAmount]);
 
       const todayDate = new Date().toISOString().slice(0, 10);
       exportToCSV(`便當點餐明細_${activeStoreConfig || '今日'}_${todayDate}.csv`, rows);
