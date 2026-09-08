@@ -296,7 +296,7 @@
     const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwmWXwO3tljR_gReHpeMksv2vyxgk97_F3sl7HDL1A8T1ji1CwGpoXUps-KMIWKIsIXgA/exec'; // 填入固定 API 網址即可免設定直接使用！
     let apiUrl = DEFAULT_API_URL.trim() || localStorage.getItem(API_KEY_STORAGE) || '';
 
-    async function verifyAdminAuth() {
+    async function verifyAdminAuth(retry = 0) {
       let password = sessionStorage.getItem(PASSWORD_KEY);
       
       // 若沒有暫存密碼，則提示輸入
@@ -340,6 +340,9 @@
             isOldScriptOrOffline = true;
           }
         } catch (e) {
+          if (retry < 2) {
+            return setTimeout(() => verifyAdminAuth(retry + 1), 1500);
+          }
           // 網路錯誤、CORS 被阻擋（如舊版 script 轉址）代表可能為舊版後台
           isOldScriptOrOffline = true;
         }
@@ -513,9 +516,9 @@
     });
 
     // Fetch existing menu and deadline
-    async function fetchAdminData() {
+    async function fetchAdminData(retry = 0) {
       try {
-        showStatus(menuStatusMsg, '正在載入雲端資料...', 'info');
+        showStatus(menuStatusMsg, `正在載入雲端資料...${retry > 0 ? ` (嘗試重試第 ${retry} 次)` : ''}`, 'info');
         const response = await fetch(apiUrl);
         if (!response.ok) throw new Error('API 讀取失敗');
         
@@ -567,9 +570,14 @@
         showStatus(menuStatusMsg, '雲端資料載入成功！', 'success');
         showStatus(apiStatusMsg, 'API 連線正常！', 'success');
       } catch (err) {
-        console.error(err);
-        showStatus(apiStatusMsg, `無法與雲端連線，請檢查網址是否正確。錯誤資訊：${err.message}`, 'error');
-        showStatus(menuStatusMsg, '載入雲端資料失敗，已恢復為本地編輯模式。', 'error');
+        console.error('API 讀取錯誤:', err);
+        if (retry < 2) {
+          // 自動重試 2 次 (因應 Google Apps Script 閒置冷啟動 3-5 秒延遲)
+          setTimeout(() => fetchAdminData(retry + 1), 1500);
+        } else {
+          showStatus(apiStatusMsg, `無法與雲端連線，請檢查網址是否正確。錯誤資訊：${err.message}`, 'error');
+          showStatus(menuStatusMsg, '載入雲端資料失敗，已恢復為本地編輯模式。', 'error');
+        }
       }
     }
 
